@@ -1,0 +1,19 @@
+{
+  "name": "icrm",
+  "version": "1.0.0",
+  "private": true,
+  "description": "iCRM — multi-tenant, AI-first customer support platform for NTWorld",
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "npm -w @icrm/api run dev",
+    "build": "npm -w @icrm/api run build",
+    "test": "npm -w @icrm/api run test",
+    "db:migrate": "npm -w @icrm/api run db:migrate",
+    "db:seed": "npm -w @icrm/api run db:seed"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

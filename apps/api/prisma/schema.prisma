@@ -1,0 +1,301 @@
+// iCRM data model — PRD §4. Table and column names are pinned to the exact PRD
+// names via @@map / @map. Idiomatic camelCase is used only in the generated client.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ----------------------------- enums -----------------------------
+
+enum Role {
+  super_admin
+  tenant_admin
+  agent
+  viewer
+  end_user
+}
+
+enum ChannelType {
+  email
+  telegram
+  livechat
+  whatsapp_stub
+}
+
+enum ChannelStatus {
+  active
+  disabled
+}
+
+enum TicketStatus {
+  new
+  ai
+  handoff
+  human
+  done
+  closed
+}
+
+enum Priority {
+  low
+  normal
+  high
+  urgent
+}
+
+enum SenderType {
+  end_user
+  eva
+  agent
+  system
+}
+
+enum SyncStatus {
+  synced
+  pending_confirmation
+  stale
+}
+
+enum Tone {
+  community
+  formal
+  concise
+}
+
+enum RoutingLayer {
+  l1
+  l2
+  l3
+  handoff
+}
+
+// ----------------------------- models -----------------------------
+
+model Tenant {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now()) @map("created_at")
+
+  users        User[]
+  channels     Channel[]
+  endUsers     EndUser[]
+  tickets      Ticket[]
+  labelAnswers LabelAnswer[]
+  kbArticles   KbArticle[]
+  evaConfig    EvaConfig?
+  routingLogs  RoutingLog[]
+
+  @@map("tenants")
+}
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  tenantId     String?  @map("tenant_id") @db.Uuid // nullable for super_admin
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  displayName  String   @map("display_name")
+  role         Role
+  isOnline     Boolean  @default(false) @map("is_online")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  tenant           Tenant?  @relation(fields: [tenantId], references: [id])
+  assignedTickets  Ticket[] @relation("assignee")
+  lockedTickets    Ticket[] @relation("locker")
+  messages         Message[]
+
+  @@index([tenantId])
+  @@index([role])
+  @@map("users")
+}
+
+model Channel {
+  id              String        @id @default(uuid()) @db.Uuid
+  tenantId        String        @map("tenant_id") @db.Uuid
+  type            ChannelType
+  configEncrypted Json?         @map("config_encrypted")
+  status          ChannelStatus @default(active)
+  createdAt       DateTime      @default(now()) @map("created_at")
+
+  tenant  Tenant   @relation(fields: [tenantId], references: [id])
+  tickets Ticket[]
+
+  @@index([tenantId])
+  @@index([status])
+  @@map("channels")
+}
+
+model EndUser {
+  id          String  @id @default(uuid()) @db.Uuid
+  tenantId    String  @map("tenant_id") @db.Uuid
+  externalKey String  @map("external_key")
+  displayName String  @map("display_name")
+  email       String?
+  telegramId  String? @map("telegram_id")
+  meta        Json    @default("{}")
+
+  tenant  Tenant   @relation(fields: [tenantId], references: [id])
+  tickets Ticket[]
+
+  @@unique([tenantId, externalKey])
+  @@index([tenantId])
+  @@index([email])
+  @@map("end_users")
+}
+
+model Ticket {
+  id             String       @id @default(uuid()) @db.Uuid
+  tenantId       String       @map("tenant_id") @db.Uuid
+  channelId      String       @map("channel_id") @db.Uuid
+  endUserId      String       @map("end_user_id") @db.Uuid
+  subject        String
+  status         TicketStatus @default(new)
+  assigneeUserId String?      @map("assignee_user_id") @db.Uuid
+  lockedByUserId String?      @map("locked_by_user_id") @db.Uuid
+  lockedAt       DateTime?    @map("locked_at")
+  priority       Priority     @default(normal)
+  aiConfidence   Float?       @map("ai_confidence")
+  handoffReason  String?      @map("handoff_reason")
+  firstResponseAt DateTime?   @map("first_response_at")
+  resolvedAt     DateTime?    @map("resolved_at")
+  meta           Json         @default("{}")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  tenant   Tenant  @relation(fields: [tenantId], references: [id])
+  channel  Channel @relation(fields: [channelId], references: [id])
+  endUser  EndUser @relation(fields: [endUserId], references: [id])
+  assignee User?   @relation("assignee", fields: [assigneeUserId], references: [id])
+  locker   User?   @relation("locker", fields: [lockedByUserId], references: [id])
+
+  messages     Message[]
+  events       TicketEvent[]
+  routingLogs  RoutingLog[]
+
+  @@index([tenantId])
+  @@index([status])
+  @@index([channelId])
+  @@index([endUserId])
+  @@index([assigneeUserId])
+  @@index([updatedAt])
+  @@index([tenantId, status])
+  @@map("tickets")
+}
+
+model Message {
+  id                String     @id @default(uuid()) @db.Uuid
+  ticketId          String     @map("ticket_id") @db.Uuid
+  senderType        SenderType @map("sender_type")
+  senderUserId      String?    @map("sender_user_id") @db.Uuid
+  body              String
+  meta              Json       @default("{}")
+  externalMessageId String?    @map("external_message_id")
+  createdAt         DateTime   @default(now()) @map("created_at")
+
+  ticket     Ticket @relation(fields: [ticketId], references: [id])
+  senderUser User?  @relation(fields: [senderUserId], references: [id])
+
+  @@unique([externalMessageId])
+  @@index([ticketId])
+  @@index([createdAt])
+  @@map("messages")
+}
+
+model TicketEvent {
+  id         String        @id @default(uuid()) @db.Uuid
+  ticketId   String        @map("ticket_id") @db.Uuid
+  actorType  String        @map("actor_type")
+  actorId    String?       @map("actor_id")
+  eventType  String        @map("event_type")
+  fromStatus TicketStatus? @map("from_status")
+  toStatus   TicketStatus? @map("to_status")
+  payload    Json          @default("{}")
+  createdAt  DateTime      @default(now()) @map("created_at")
+
+  ticket Ticket @relation(fields: [ticketId], references: [id])
+
+  @@index([ticketId])
+  @@index([createdAt])
+  @@map("ticket_events")
+}
+
+model LabelAnswer {
+  id              String   @id @default(uuid()) @db.Uuid
+  tenantId        String   @map("tenant_id") @db.Uuid
+  triggerKeywords String[] @map("trigger_keywords")
+  locale          String
+  answerBody      String   @map("answer_body")
+  hitCount        Int      @default(0) @map("hit_count")
+  isActive        Boolean  @default(true) @map("is_active")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+  @@index([isActive])
+  @@map("label_answers")
+}
+
+model KbArticle {
+  id         String     @id @default(uuid()) @db.Uuid
+  tenantId   String     @map("tenant_id") @db.Uuid
+  title      String
+  bodyMd     String     @map("body_md")
+  locale     String
+  tags       String[]
+  sourceRef  String?    @map("source_ref")
+  syncStatus SyncStatus @default(synced) @map("sync_status")
+  createdAt  DateTime   @default(now()) @map("created_at")
+  updatedAt  DateTime   @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+  @@index([syncStatus])
+  @@index([updatedAt])
+  @@map("kb_articles")
+}
+
+model EvaConfig {
+  id                         String   @id @default(uuid()) @db.Uuid
+  tenantId                   String   @unique @map("tenant_id") @db.Uuid
+  l1Enabled                  Boolean  @default(true) @map("l1_enabled")
+  l2Enabled                  Boolean  @default(true) @map("l2_enabled")
+  l3Enabled                  Boolean  @default(true) @map("l3_enabled")
+  l3Model                    String   @default("claude-sonnet-4-6") @map("l3_model")
+  handoffConfidenceThreshold Int      @default(62) @map("handoff_confidence_threshold")
+  tone                       Tone     @default(community)
+  languages                  String[] @default(["zh", "en", "ms"])
+  signature                  String   @default("EVA")
+  // PRD P0-3.2: editable human-request keyword set, per tenant (DEC-011).
+  humanRequestKeywords       String[] @default(["转人工", "人工", "human", "agent", "manusia"]) @map("human_request_keywords")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@map("eva_configs")
+}
+
+model RoutingLog {
+  id         String       @id @default(uuid()) @db.Uuid
+  tenantId   String       @map("tenant_id") @db.Uuid
+  ticketId   String       @map("ticket_id") @db.Uuid
+  messageId  String?      @map("message_id") @db.Uuid
+  layer      RoutingLayer
+  latencyMs  Int          @map("latency_ms")
+  costUsd    Float        @map("cost_usd")
+  confidence Float?
+  createdAt  DateTime     @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  ticket Ticket @relation(fields: [ticketId], references: [id])
+
+  @@index([tenantId])
+  @@index([ticketId])
+  @@index([layer])
+  @@index([createdAt])
+  @@map("routing_logs")
+}
