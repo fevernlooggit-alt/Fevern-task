@@ -196,6 +196,8 @@ async function main(): Promise<void> {
         handoffReason: st.handoffReason ?? null,
         priority: 'normal',
         createdAt,
+        // Keep prototype tickets at the top of the updatedAt-sorted inbox.
+        updatedAt: new Date(now.getTime() - offset * 60_000),
         meta: { ref: st.ref },
       },
     });
@@ -217,10 +219,8 @@ async function main(): Promise<void> {
     }
     if (st.status === 'done') resolvedAt = new Date(createdAt.getTime() + st.msgs.length * 60_000 + 60_000);
 
-    await prisma.ticket.update({
-      where: { id: ticket.id },
-      data: { firstResponseAt, resolvedAt },
-    });
+    // Raw update so @updatedAt does not overwrite the curated ordering.
+    await prisma.$executeRaw`UPDATE tickets SET first_response_at = ${firstResponseAt}, resolved_at = ${resolvedAt}, updated_at = ${new Date(now.getTime() - offset * 60_000)} WHERE id = ${ticket.id}::uuid`;
 
     // audit events + routing logs matching the thread
     if (st.status === 'handoff') {
@@ -260,7 +260,9 @@ async function seedHistory(tenantId: string, channelId: string, now: Date): Prom
     data: { tenantId, externalKey: 'seed:history', displayName: '历史玩家' },
   });
 
-  for (let d = 13; d >= 0; d--) {
+  // Days 1–14 ago (never today) so history can never outrank the prototype
+  // tickets in the updatedAt-sorted inbox, regardless of timezone.
+  for (let d = 14; d >= 1; d--) {
     const day = new Date(now.getFullYear(), now.getMonth(), now.getDate() - d, 10, 0, 0);
     const total = 6 + Math.floor(rand() * 6); // 6–11 resolved per day
     for (let i = 0; i < total; i++) {
@@ -272,6 +274,7 @@ async function seedHistory(tenantId: string, channelId: string, now: Date): Prom
           subject: `历史工单 ${d}-${i}`, status: 'done',
           createdAt: at, firstResponseAt: new Date(at.getTime() + 8_000),
           resolvedAt: new Date(at.getTime() + 5 * 60_000),
+          updatedAt: new Date(at.getTime() + 5 * 60_000),
           meta: { seedHistory: true },
         },
       });

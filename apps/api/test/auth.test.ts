@@ -69,6 +69,22 @@ describe('auth + roles + tenancy', () => {
     expect(aRes.statusCode).toBe(200);
   });
 
+  it('GET /tenants: super_admin sees all, agent sees only their own', async () => {
+    const { tenant, agentA } = await seedBasics('a8');
+    await createTenant('a8-other', 'Other');
+    const su = await createUser({ role: 'super_admin', tenantId: null });
+    const app = await getApp();
+
+    const suCookie = await login(app, su.email);
+    const suRes = await app.inject({ method: 'GET', url: '/tenants', headers: { cookie: suCookie } });
+    expect(suRes.json().tenants.length).toBe(2);
+
+    const agCookie = await login(app, agentA.email);
+    const agRes = await app.inject({ method: 'GET', url: '/tenants', headers: { cookie: agCookie } });
+    expect(agRes.json().tenants).toHaveLength(1);
+    expect(agRes.json().tenants[0].id).toBe(tenant.id);
+  });
+
   it('logout clears the session and releases held locks', async () => {
     const { tenant, channel, endUser, agentA } = await seedBasics('a7');
     const ticket = await createTicket({ tenantId: tenant.id, channelId: channel.id, endUserId: endUser.id, status: 'handoff' });

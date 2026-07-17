@@ -1,0 +1,31 @@
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+
+// Dev proxy: the console talks to the API on :3000 with same-origin cookies.
+const API = process.env.VITE_API_URL ?? 'http://127.0.0.1:3000';
+
+export default defineConfig({
+  plugins: [react()],
+  server: {
+    host: '0.0.0.0',
+    port: 5173,
+    proxy: {
+      '/auth': API,
+      '/tenants': API,
+      '/webhooks': API,
+      '/widget': API,
+      '/health': API,
+      '/realtime': { target: API, ws: true },
+    },
+  },
+  preview: {
+    proxy: {
+      '/auth': API,
+      '/tenants': API,
+      '/webhooks': API,
+      '/widget': API,
+      '/health': API,
+      '/realtime': { target: API, ws: true },
+    },
+  },
+});

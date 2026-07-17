@@ -9,3 +9,5 @@ coverage/
 apps/api/prisma/*.db
 storage/
 *.tsbuildinfo
+test-results/
+playwright-report/

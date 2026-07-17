@@ -70,3 +70,17 @@ PRD §5 P0-3.2 requires the human-request keyword set (`转人工`, `人工`, "h
 `human_request_keywords String[]` column on `eva_configs` (one editable list per tenant,
 co-located with the config the tenant_admin already edits). Migration
 `add_human_request_keywords` adds the column non-destructively with the PRD's default set.
+
+### DEC-012 · 2026-07-17 · Console styling = Tailwind config + prototype component CSS
+PRD §3 prescribes Tailwind and §7 makes the prototype the visual source of truth. The Aurora
+Phantom tokens are defined twice on purpose: as Tailwind theme colors (`tailwind.config.js`)
+for utility usage, and as CSS variables in `apps/web/src/index.css` alongside the prototype's
+component classes (lifted verbatim) to guarantee pixel parity with `icrm-prototype.html`.
+New UI (login card, label-answer table, range picker) uses the same class vocabulary.
+
+### DEC-013 · 2026-07-17 · Seed history spans days 1–14 ago, never today
+The monitor needs a fortnight of history, but history rows created "today at 10:00" can sort
+above the six prototype tickets in the updatedAt-ordered inbox (and 10:00 local can be in the
+future in UTC containers). Seed history is therefore generated for days 1–14 ago only, and
+prototype tickets receive explicit near-now `updated_at` values, so first boot always shows
+the prototype threads at the top (PRD §0.7).

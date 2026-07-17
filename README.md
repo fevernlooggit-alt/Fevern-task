@@ -17,11 +17,12 @@ collision-safe agent assignment.
 |---|---|---|
 | **1 — Core spine (backend)** | schema + migrations, auth/roles/tenancy, P0-2 state machine, ticket/message APIs, P0-4 assignment + collision, seed data, realtime events | ✅ **Done** (gate tests green) |
 | **2 — Channels + EVA** | three-layer routing + P0-3 handoff + `routing_logs` (✅ core, L1 fully wired), Telegram webhook + LiveChat inbound (✅ minimal), email piping/IMAP (⏳ interfaces + worker seam) | ◑ Partial |
-| **3 — Console (React)** | `apps/web` wired to the API, matching the prototype | ⏳ Scaffolded (API-ready) |
+| **3 — Console (React)** | `apps/web` (React 18 + Vite + Tailwind) — Inbox / EVA 助手配置 / 知识库 / 监控, Aurora Phantom theme, realtime, collision banner | ✅ **Done** (Playwright gate green) |
 | **4 — Hardening** | stale-lock cleanup + done→closed cron (✅), rate limits / creds audit / full locale pass (⏳) | ◑ Partial |
 
-Acceptance gates met for Phase 1: all P0-2 / P0-4 tests green; the two-agent race test passes
-(100 rounds, exactly one winner each round, loser gets 409 + holder identity).
+Gates met: Phase 1 — all P0-2 / P0-4 tests green; two-agent race passes 100 rounds (exactly one
+winner, loser gets 409 + holder). Phase 3 — Playwright smoke: login → claim → reply → collision
+banner in a second session → resolve; monitor renders real metrics (`npm run test:e2e`).
 
 ---
 
@@ -46,8 +47,12 @@ createdb icrm && createdb icrm_test     # or use the URLs in .env
 npm -w @icrm/api run db:migrate         # apply migrations
 npm -w @icrm/api run db:seed            # load prototype fixtures
 npm run dev                             # API on http://localhost:3000
+npm -w @icrm/web run dev                # (separate shell) console on http://localhost:5173
 npm -w @icrm/api run worker             # (separate shell) maintenance worker
 ```
+
+Open http://localhost:5173 and log in with a seed account below — the inbox boots looking
+like the Aurora Phantom prototype.
 
 ### Smoke check
 
@@ -82,7 +87,8 @@ Tenants (slugs): `parallel-world`, `rare-earth-pwc`, `ntworld`.
 
 ```bash
 npm test                    # full Vitest suite (needs Postgres; uses TEST_DATABASE_URL)
-npm -w @icrm/api run typecheck
+npm run test:e2e            # Playwright console smoke (reseeds, then drives the real UI)
+npm -w @icrm/api run typecheck && npm -w @icrm/web run typecheck
 ```
 
 Coverage highlights (PRD §0.6 — every route / transition tested, concurrency raced):
@@ -116,6 +122,10 @@ apps/api                       Fastify + TypeScript + Prisma (REST + WebSocket +
                                router (routing_logs), retrieval (KB), handoff (P0-3)
   src/realtime/*               in-process event bus + /realtime WebSocket (tenant-filtered)
   src/jobs/maintenance.ts      done→closed + stale-lock cleanup (run by src/worker.ts)
+apps/web                       React 18 + Vite + Tailwind console (Aurora Phantom)
+  src/pages/{Inbox,EvaConfig,Kb,Monitor}.tsx   the four PRD §7 modules
+  src/locale.ts                all user-facing strings (zh primary, en secondary)
+  e2e/smoke.spec.ts            Playwright Phase-3 gate
 docs/DECISIONS.md              append-only decision log (PRD §0.2)
 docs/CHANGELOG.md              append-only change log (PRD §0.3)
 ```
@@ -171,6 +181,5 @@ All secrets come from the environment; see [`.env.example`](.env.example). Key v
 
 - **Phase 2:** IMAP/SMTP email piping over BullMQ (interfaces + worker seam are in place),
   richer L2/L3 integration tests behind mocked providers.
-- **Phase 3:** `apps/web` React console recreating the Aurora Phantom prototype against this API.
-- **Phase 4:** rate limiting, credential-audit tooling, full zh/en locale file, Redis pub/sub
-  realtime for horizontal scale.
+- **Phase 4:** rate limiting, credential-audit tooling, en locale toggle in the console,
+  Redis pub/sub realtime for horizontal scale, web service in docker-compose.

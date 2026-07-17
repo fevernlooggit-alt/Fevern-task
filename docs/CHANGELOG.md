@@ -45,3 +45,25 @@
 **Migration notes**
 - Initial migration `0001_init` creates all tables from empty; no destructive operations.
 - Requires `DATABASE_URL` (Postgres 15+). Run `npm -w @icrm/api run db:migrate && npm -w @icrm/api run db:seed`.
+
+## 2026-07-17 — Phase 3: Console (React) + tenants route + seed ordering
+
+**What changed**
+- **`apps/web`** — React 18 + TypeScript + Vite + Tailwind console recreating the Aurora
+  Phantom prototype: Inbox (filters/search, lifecycle strip, collision banner + disabled
+  compose, message bubbles incl. amber-dashed 内部备注, 转人工/发送/标记解决/重新打开 wired to the
+  state machine, lock heartbeat, WebSocket live updates), EVA 助手配置 (L1/L2/L3 toggles,
+  threshold slider, model/tone/signature, channel status, label-answer CRUD table,
+  tenant_admin-gated), 知识库 (search, markdown CRUD, sync_status control, "excluded from
+  EVA" indicator), 监控 (day/7d/30d cards, 14-day AI-vs-human line chart, routing bars,
+  agent presence). All strings in `src/locale.ts` (zh primary, en secondary).
+- **API:** added `GET /tenants` (tenant switcher; super_admin sees all, others their own)
+  + test.
+- **Seed:** prototype tickets get explicit near-now `updated_at`; monitor history moved to
+  days 1–14 ago so first boot shows the prototype threads on top (DEC-013).
+- **E2E:** Playwright smoke (`apps/web/e2e/smoke.spec.ts`) covering the Phase 3 gate:
+  login → claim via reply → collision banner in a second session → resolve → monitor
+  renders real metrics. Run with `npm run test:e2e`.
+
+**Migration notes:** none (no schema changes). Reseed to get the new ordering:
+`npm -w @icrm/api run db:seed`.

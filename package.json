@@ -11,7 +11,8 @@
     "build": "npm -w @icrm/api run build",
     "test": "npm -w @icrm/api run test",
     "db:migrate": "npm -w @icrm/api run db:migrate",
-    "db:seed": "npm -w @icrm/api run db:seed"
+    "db:seed": "npm -w @icrm/api run db:seed",
+    "test:e2e": "npm -w @icrm/api run db:seed && npm -w @icrm/web run e2e"
   },
   "engines": {
     "node": ">=20"

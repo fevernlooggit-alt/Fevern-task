@@ -7,6 +7,7 @@ import { env } from './config/env.js';
 import { ApiError, Errors } from './lib/errors.js';
 import { registerRealtime } from './realtime/ws.js';
 import { authRoutes } from './modules/auth/routes.js';
+import { tenantRoutes } from './modules/tenants/routes.js';
 import { ticketRoutes } from './modules/tickets/routes.js';
 import { evaConfigRoutes } from './modules/evaConfig/routes.js';
 import { labelAnswerRoutes } from './modules/labelAnswers/routes.js';
@@ -54,6 +55,7 @@ export async function buildApp(): Promise<FastifyInstance> {
 
   await registerRealtime(app);
   await app.register(authRoutes);
+  await app.register(tenantRoutes);
   await app.register(ticketRoutes);
   await app.register(evaConfigRoutes);
   await app.register(labelAnswerRoutes);
