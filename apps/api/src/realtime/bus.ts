@@ -6,7 +6,8 @@ import { EventEmitter } from 'node:events';
 
 export type RealtimeEvent =
   | { type: 'ticket.updated'; tenantId: string; ticketId: string; status: string; payload?: unknown }
-  | { type: 'message.created'; tenantId: string; ticketId: string; messageId: string; senderType: string }
+  | { type: 'message.created'; tenantId: string; ticketId: string; messageId: string; senderType: string; internal?: boolean }
+  | { type: 'message.updated'; tenantId: string; ticketId: string; messageId: string; deliveryStatus: string }
   | {
       type: 'lock.changed';
       tenantId: string;

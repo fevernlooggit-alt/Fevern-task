@@ -84,18 +84,84 @@ export async function webhookRoutes(app: FastifyInstance): Promise<void> {
     return { ok: true, ...result };
   });
 
-  // Minimal embeddable LiveChat snippet (Phase 3 replaces with a real widget).
+  // LiveChat thread poll (P0-1 outbound): the widget reads agent/EVA replies here.
+  // Identity = channelId + sessionKey (same shape the inbound webhook trusts).
+  const threadQuery = z.object({ sessionKey: z.string().min(1), afterId: z.string().uuid().optional() });
+  app.get('/webhooks/livechat/:channelId/thread', async (req) => {
+    const { channelId } = parse(channelParams, req.params);
+    const channel = await loadActiveChannel(channelId, 'livechat');
+    const { sessionKey, afterId } = parse(threadQuery, req.query);
+
+    const endUser = await prisma.endUser.findUnique({
+      where: { tenantId_externalKey: { tenantId: channel.tenantId, externalKey: `lc:${sessionKey}` } },
+      select: { id: true },
+    });
+    if (!endUser) return { ticketId: null, messages: [] };
+
+    const ticket = await prisma.ticket.findFirst({
+      where: { tenantId: channel.tenantId, endUserId: endUser.id, channelId: channel.id },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, status: true },
+    });
+    if (!ticket) return { ticketId: null, messages: [] };
+
+    let after: Date | null = null;
+    if (afterId) {
+      const anchor = await prisma.message.findFirst({
+        where: { id: afterId, ticketId: ticket.id },
+        select: { createdAt: true },
+      });
+      after = anchor?.createdAt ?? null;
+    }
+
+    // End-user view: no internal notes, no system lines.
+    const rows = await prisma.message.findMany({
+      where: {
+        ticketId: ticket.id,
+        senderType: { in: ['end_user', 'agent', 'eva'] },
+        ...(after ? { createdAt: { gt: after } } : {}),
+      },
+      orderBy: { createdAt: 'asc' },
+      take: 100,
+    });
+    const visible = rows.filter((m) => !(m.meta as { internal?: boolean } | null)?.internal);
+    return {
+      ticketId: ticket.id,
+      status: ticket.status,
+      messages: visible.map((m) => ({
+        id: m.id,
+        senderType: m.senderType,
+        body: m.body,
+        createdAt: m.createdAt,
+      })),
+    };
+  });
+
+  // Embeddable LiveChat snippet: send + poll (2s interval) so visitors actually
+  // RECEIVE replies — the other half of the conversation loop (review B-00).
   app.get('/widget/:channelId.js', async (req, reply) => {
     const channelId = (req.params as { channelId: string }).channelId;
     reply.header('content-type', 'application/javascript; charset=utf-8');
-    return `// iCRM LiveChat widget (minimal stub)
+    return `// iCRM LiveChat widget
 (function(){
+  var base = ${JSON.stringify('/webhooks/livechat/' + channelId)};
+  var lastId = null;
   window.iCRM = window.iCRM || {};
   window.iCRM.send = function(sessionKey, name, body){
-    return fetch(${JSON.stringify('/webhooks/livechat/' + channelId)}, {
+    return fetch(base, {
       method: 'POST', headers: {'content-type':'application/json'},
       body: JSON.stringify({ sessionKey: sessionKey, name: name, body: body })
     }).then(function(r){ return r.json(); });
+  };
+  window.iCRM.poll = function(sessionKey, onMessage){
+    function tick(){
+      var qs = '?sessionKey=' + encodeURIComponent(sessionKey) + (lastId ? '&afterId=' + lastId : '');
+      fetch(base + '/thread' + qs).then(function(r){ return r.json(); }).then(function(res){
+        (res.messages || []).forEach(function(m){ lastId = m.id; if (m.senderType !== 'end_user') onMessage(m); });
+      }).catch(function(){});
+    }
+    tick();
+    return setInterval(tick, 2000);
   };
 })();`;
   });

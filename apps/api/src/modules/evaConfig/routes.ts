@@ -3,6 +3,28 @@ import { z } from 'zod';
 import { prisma } from '../../db/prisma.js';
 import { parse } from '../../lib/validate.js';
 import { authenticate, tenantScope, requireRole, ROLES } from '../../middleware/auth.js';
+import { env } from '../../config/env.js';
+
+/**
+ * Real layer health (P0-8, review B-04): a toggle that is ON while the layer is
+ * actually unavailable silently degrades routing — the console must show why.
+ */
+function layerAvailability() {
+  return {
+    l1: { available: true as const },
+    l2: env.l2BaseUrl
+      ? { available: true as const }
+      : { available: false as const, reason: 'L2_BASE_URL 未配置，路由将跳过 L2' },
+    l3: env.anthropicApiKey
+      ? { available: true as const }
+      : { available: false as const, reason: 'ANTHROPIC_API_KEY 未配置，路由将跳过 L3' },
+  };
+}
+
+/** Per-call unit costs come from env (review B-13) — never hardcoded in the UI. */
+function layerCosts() {
+  return { l1: env.costL1, l2: env.costL2, l3: env.costL3 };
+}
 
 const putBody = z.object({
   l1Enabled: z.boolean().optional(),
@@ -25,7 +47,7 @@ export async function evaConfigRoutes(app: FastifyInstance): Promise<void> {
     const config =
       (await prisma.evaConfig.findUnique({ where: { tenantId } })) ??
       (await prisma.evaConfig.create({ data: { tenantId } }));
-    return { config };
+    return { config, availability: layerAvailability(), costs: layerCosts() };
   });
 
   app.put('/tenants/:t/eva-config', { preHandler: adminScope }, async (req) => {
@@ -36,6 +58,6 @@ export async function evaConfigRoutes(app: FastifyInstance): Promise<void> {
       create: { tenantId, ...data },
       update: data,
     });
-    return { config };
+    return { config, availability: layerAvailability(), costs: layerCosts() };
   });
 }

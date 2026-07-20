@@ -15,6 +15,7 @@ import { kbRoutes } from './modules/kb/routes.js';
 import { channelRoutes } from './modules/channels/routes.js';
 import { metricsRoutes } from './modules/metrics/routes.js';
 import { webhookRoutes } from './modules/webhooks/routes.js';
+import { userRoutes } from './modules/users/routes.js';
 
 export async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({
@@ -55,6 +56,7 @@ export async function buildApp(): Promise<FastifyInstance> {
 
   await registerRealtime(app);
   await app.register(authRoutes);
+  await app.register(userRoutes);
   await app.register(tenantRoutes);
   await app.register(ticketRoutes);
   await app.register(evaConfigRoutes);

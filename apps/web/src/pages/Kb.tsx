@@ -25,6 +25,8 @@ export default function KbPage({ tenant, canEdit }: Props) {
   const [q, setQ] = useState('');
   const [items, setItems] = useState<KbArticle[]>([]);
   const [draft, setDraft] = useState<Draft | null>(null);
+  // Read view (P0-6, review B-08): every console role can open the full article.
+  const [reading, setReading] = useState<KbArticle | null>(null);
 
   const load = useCallback(async () => {
     const params = q.trim() ? `?q=${encodeURIComponent(q.trim())}` : '';
@@ -53,8 +55,11 @@ export default function KbPage({ tenant, canEdit }: Props) {
   };
 
   const remove = async (id: string) => {
+    // Destructive-action confirm (P0-9, review B-11).
+    if (!window.confirm(t.confirmDelete)) return;
     await api.del(`/tenants/${tenant}/kb-articles/${id}`);
     setDraft(null);
+    setReading(null);
     await load();
   };
 
@@ -68,6 +73,41 @@ export default function KbPage({ tenant, canEdit }: Props) {
           </button>
         )}
       </div>
+
+      {reading && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+            <h4 style={{ marginBottom: 0 }}>{reading.title}</h4>
+            <span className={`tag ${reading.syncStatus === 'synced' ? 'sync' : 'stale'}`}>
+              {reading.syncStatus === 'synced' ? t.kbSynced : t.kbPending}
+            </span>
+            <span style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+              {canEdit && (
+                <button
+                  className="btn btn-ghost"
+                  onClick={() => {
+                    setDraft({
+                      id: reading.id,
+                      title: reading.title,
+                      bodyMd: reading.bodyMd,
+                      locale: reading.locale,
+                      tags: reading.tags.join(', '),
+                      syncStatus: reading.syncStatus,
+                    });
+                    setReading(null);
+                  }}
+                >
+                  {t.kbEdit}
+                </button>
+              )}
+              <button className="btn btn-ghost" onClick={() => setReading(null)}>
+                {t.kbClose}
+              </button>
+            </span>
+          </div>
+          <div className="kb-reader">{reading.bodyMd}</div>
+        </div>
+      )}
 
       {draft && (
         <div className="card" style={{ marginBottom: 16 }}>
@@ -117,14 +157,7 @@ export default function KbPage({ tenant, canEdit }: Props) {
 
       <div>
         {items.map((a) => (
-          <div
-            key={a.id}
-            className="kb-item"
-            onClick={() =>
-              canEdit &&
-              setDraft({ id: a.id, title: a.title, bodyMd: a.bodyMd, locale: a.locale, tags: a.tags.join(', '), syncStatus: a.syncStatus })
-            }
-          >
+          <div key={a.id} className="kb-item" onClick={() => setReading(a)}>
             <div className="t">{a.title}</div>
             <div className="d">{a.bodyMd.length > 120 ? `${a.bodyMd.slice(0, 120)}…` : a.bodyMd}</div>
             <div className="tags">

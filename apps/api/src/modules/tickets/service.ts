@@ -10,10 +10,16 @@ import { env } from '../../config/env.js';
 // ------------------------------ read ------------------------------
 
 const LIST_STATUSES = new Set(['new', 'ai', 'handoff', 'human', 'done', 'closed']);
+const ACTIVE_STATUSES = ['new', 'ai', 'handoff', 'human'] as const;
 
 export interface ListParams {
   tenantId: string;
-  status?: string; // 'all' | one of the statuses
+  /**
+   * Default (omitted / 'active') = the working queue: new|ai|handoff|human.
+   * Closed noise never floods the default view (review B-01); 'done' and
+   * 'closed' are their own filters. 'all' = literally everything (legacy).
+   */
+  status?: string;
   q?: string;
   page?: number;
   pageSize?: number;
@@ -26,9 +32,20 @@ export async function listTickets(params: ListParams) {
   const where: Prisma.TicketWhereInput = { tenantId: params.tenantId };
   if (params.status && params.status !== 'all' && LIST_STATUSES.has(params.status)) {
     where.status = params.status as Ticket['status'];
+  } else if (!params.status || params.status === 'active') {
+    where.status = { in: [...ACTIVE_STATUSES] };
   }
-  if (params.q && params.q.trim()) {
-    where.subject = { contains: params.q.trim(), mode: 'insensitive' };
+  const q = params.q?.trim();
+  if (q) {
+    // Search subject, customer name, message bodies, and #number (review B-12).
+    const or: Prisma.TicketWhereInput[] = [
+      { subject: { contains: q, mode: 'insensitive' } },
+      { endUser: { displayName: { contains: q, mode: 'insensitive' } } },
+      { messages: { some: { body: { contains: q, mode: 'insensitive' } } } },
+    ];
+    const num = /^#?(\d{1,9})$/.exec(q);
+    if (num) or.push({ number: Number(num[1]) });
+    where.OR = or;
   }
 
   // Handoff queue: priority (urgent→low) then age (oldest first). Otherwise newest activity.
@@ -68,7 +85,7 @@ export async function getTicketThread(tenantId: string, ticketId: string) {
     where: { id: ticketId, tenantId },
     include: {
       channel: { select: { type: true } },
-      endUser: { select: { displayName: true, email: true } },
+      endUser: { select: { id: true, displayName: true, email: true } },
       assignee: { select: { id: true, displayName: true } },
       locker: { select: { id: true, displayName: true } },
     },
@@ -95,7 +112,11 @@ interface ActingUser {
   displayName: string;
 }
 
-/** POST /claim — atomic lock + (new|handoff)→human. */
+/**
+ * POST /claim — atomic lock + transition to human.
+ * `ai` tickets are taken over in one step (ai→handoff→claim through the state
+ * machine): "回复/接管即转人工" removes the old two-click dance (review ⚫-5).
+ */
 export async function claimTicket(tenantId: string, ticketId: string, user: ActingUser): Promise<Ticket> {
   const ticket = await prisma.ticket.findFirst({
     where: { id: ticketId, tenantId },
@@ -104,9 +125,6 @@ export async function claimTicket(tenantId: string, ticketId: string, user: Acti
   if (!ticket) throw Errors.notFound('Ticket not found');
   if (ticket.status === 'done' || ticket.status === 'closed') {
     throw Errors.illegalTransition(`Cannot claim a ticket in status "${ticket.status}"`);
-  }
-  if (ticket.status === 'ai') {
-    throw Errors.illegalTransition('Ticket is being handled by EVA; use handoff (转人工) to take it over');
   }
 
   const lock = await acquireLock(tenantId, ticketId, user.id);
@@ -118,7 +136,16 @@ export async function claimTicket(tenantId: string, ticketId: string, user: Acti
 
   broadcastLock(tenantId, ticketId, user.id, user.displayName);
 
-  if (ticket.status === 'new' || ticket.status === 'handoff') {
+  if (ticket.status === 'ai') {
+    await applyTransition({
+      tenantId,
+      ticketId,
+      event: { type: 'handoff', reason: 'manual' },
+      actor: { type: 'agent', id: user.id },
+      eventPayload: { takeover: 'direct_claim' },
+    });
+  }
+  if (ticket.status === 'new' || ticket.status === 'handoff' || ticket.status === 'ai') {
     return applyTransition({
       tenantId,
       ticketId,
@@ -137,12 +164,18 @@ export async function releaseTicket(tenantId: string, ticketId: string, userId: 
   return { released };
 }
 
-/** POST /messages — agent reply with auto-claim (PRD P0-4.5). */
+/**
+ * POST /messages — agent reply with auto-claim (PRD P0-4.5).
+ * `internal: true` writes a team-only note (P1-4): no lock, no transition, and
+ * it is never delivered to the end user.
+ * Replying to an `ai` ticket takes it over in one step (ai→handoff→claim).
+ */
 export async function replyToTicket(
   tenantId: string,
   ticketId: string,
   user: ActingUser,
   body: string,
+  opts: { internal?: boolean } = {},
 ): Promise<Ticket> {
   const text = body.trim();
   if (!text) throw Errors.validation('Reply body must not be empty');
@@ -153,14 +186,24 @@ export async function replyToTicket(
   });
   if (!ticket) throw Errors.notFound('Ticket not found');
 
-  if (ticket.status === 'ai') {
-    throw Errors.illegalTransition('EVA is handling this ticket; use handoff (转人工) to take it over');
+  if (opts.internal) {
+    if (ticket.status === 'closed') throw Errors.illegalTransition('Ticket is closed');
+    await createMessage({
+      tenantId,
+      ticketId,
+      senderType: 'agent',
+      senderUserId: user.id,
+      body: text,
+      meta: { internal: true },
+    });
+    return prisma.ticket.findUniqueOrThrow({ where: { id: ticketId } });
   }
+
   if (ticket.status === 'done' || ticket.status === 'closed') {
     throw Errors.illegalTransition('Ticket is resolved; reopen it before replying');
   }
 
-  // new | handoff | human → must hold the lock (auto-claim on new/handoff).
+  // new | ai | handoff | human → must hold the lock (auto-claim on new/ai/handoff).
   const lock = await acquireLock(tenantId, ticketId, user.id);
   if (!lock.acquired) {
     throw Errors.conflict('Ticket is locked by another agent', {
@@ -169,7 +212,16 @@ export async function replyToTicket(
   }
   broadcastLock(tenantId, ticketId, user.id, user.displayName);
 
-  if (ticket.status === 'new' || ticket.status === 'handoff') {
+  if (ticket.status === 'ai') {
+    await applyTransition({
+      tenantId,
+      ticketId,
+      event: { type: 'handoff', reason: 'manual' },
+      actor: { type: 'agent', id: user.id },
+      eventPayload: { takeover: 'direct_reply' },
+    });
+  }
+  if (ticket.status === 'new' || ticket.status === 'handoff' || ticket.status === 'ai') {
     await applyTransition({
       tenantId,
       ticketId,
@@ -275,6 +327,7 @@ function serializeListItem(t: Prisma.TicketGetPayload<{
 }>) {
   return {
     id: t.id,
+    number: t.number,
     subject: t.subject,
     status: t.status,
     priority: t.priority,
@@ -291,13 +344,14 @@ function serializeListItem(t: Prisma.TicketGetPayload<{
 function serializeDetail(t: Prisma.TicketGetPayload<{
   include: {
     channel: { select: { type: true } };
-    endUser: { select: { displayName: true; email: true } };
+    endUser: { select: { id: true; displayName: true; email: true } };
     assignee: { select: { id: true; displayName: true } };
     locker: { select: { id: true; displayName: true } };
   };
 }>) {
   return {
     id: t.id,
+    number: t.number,
     subject: t.subject,
     status: t.status,
     priority: t.priority,
@@ -324,7 +378,64 @@ function serializeMessage(m: Prisma.MessageGetPayload<Record<string, never>>) {
     senderUserId: m.senderUserId,
     body: m.body,
     internal: Boolean(meta.internal),
+    deliveryStatus: m.deliveryStatus,
+    deliveryError: m.deliveryError,
     meta: m.meta,
     createdAt: m.createdAt,
+  };
+}
+
+// ------------------------- customer context (P0-3) -------------------------
+
+/** GET /end-users/:id — customer profile + full cross-ticket history. */
+export async function getEndUserProfile(tenantId: string, endUserId: string) {
+  const endUser = await prisma.endUser.findFirst({
+    where: { id: endUserId, tenantId },
+  });
+  if (!endUser) throw Errors.notFound('End user not found');
+
+  const [tickets, counts] = await Promise.all([
+    prisma.ticket.findMany({
+      where: { tenantId, endUserId },
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+      select: {
+        id: true,
+        number: true,
+        subject: true,
+        status: true,
+        priority: true,
+        createdAt: true,
+        resolvedAt: true,
+        channel: { select: { type: true } },
+      },
+    }),
+    prisma.ticket.groupBy({
+      by: ['status'],
+      where: { tenantId, endUserId },
+      _count: { _all: true },
+    }),
+  ]);
+
+  return {
+    endUser: {
+      id: endUser.id,
+      displayName: endUser.displayName,
+      email: endUser.email,
+      telegramId: endUser.telegramId,
+      externalKey: endUser.externalKey,
+      meta: endUser.meta,
+    },
+    stats: Object.fromEntries(counts.map((c) => [c.status, c._count._all])),
+    tickets: tickets.map((t) => ({
+      id: t.id,
+      number: t.number,
+      subject: t.subject,
+      status: t.status,
+      priority: t.priority,
+      channelType: t.channel.type,
+      createdAt: t.createdAt,
+      resolvedAt: t.resolvedAt,
+    })),
   };
 }

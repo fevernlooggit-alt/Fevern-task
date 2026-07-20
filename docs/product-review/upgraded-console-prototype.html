@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>iCRM v2 · Parallel World · 升级版控制台原型</title>
+<style>
+  :root{
+    --bg:#0B0E17; --ink:#0F1420; --ink2:#121828; --hair:#1C2436; --hair2:#232D44;
+    --tx:#DCE3F2; --tx2:#8A94AC; --tx3:#566080;
+    --acc:#3FD9AE; --warn:#E4B363; --bad:#E4737F; --info:#7BA7E8; --vio:#9D8CFF;
+    --mono:"SF Mono","JetBrains Mono",Consolas,"Roboto Mono",monospace;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%}
+  body{font-family:"Space Grotesk",-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+    background:var(--bg);color:var(--tx);overflow:hidden;font-size:13px;font-feature-settings:"tnum" 1}
+  ::-webkit-scrollbar{width:8px;height:8px}::-webkit-scrollbar-thumb{background:var(--hair2);border-radius:4px}
+
+  .frame{display:flex;height:100vh}
+  .rail{width:212px;flex-shrink:0;border-right:1px solid var(--hair);display:flex;flex-direction:column;background:var(--ink)}
+  .brand{padding:20px 20px 22px;border-bottom:1px solid var(--hair)}
+  .brand .t{font-size:14px;font-weight:600}
+  .brand .t i{font-style:normal;color:var(--acc)}
+  .brand .s{font-size:10px;color:var(--tx3);letter-spacing:2.5px;text-transform:uppercase;margin-top:4px}
+  .rnav{padding:12px 10px;flex:1;overflow:auto}
+  .rlink{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:8px;color:var(--tx2);cursor:pointer;font-size:13px;margin-bottom:2px;transition:.15s;user-select:none;border-left:2px solid transparent}
+  .rlink:hover{color:var(--tx);background:rgba(255,255,255,.03)}
+  .rlink.on{color:var(--tx);background:rgba(63,217,174,.06);border-left-color:var(--acc)}
+  .rlink .n{margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--warn)}
+  .rlink .n.ok{color:var(--acc)}
+  .rfoot{padding:14px 16px;border-top:1px solid var(--hair);font-size:11px;color:var(--tx3);line-height:1.7}
+  .rfoot .me{display:flex;gap:9px;align-items:center}
+  .rfoot .av{width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,var(--acc),var(--vio));display:flex;align-items:center;justify-content:center;font-weight:700;color:#06120e;font-size:11px;flex-shrink:0}
+  .rfoot b{color:var(--tx2);font-weight:500;display:block;font-size:11.5px}
+  .rfoot .mail{font-family:var(--mono);font-size:9.5px;word-break:break-all}
+
+  .shell{flex:1;display:flex;flex-direction:column;min-width:0}
+  .hd{height:52px;flex-shrink:0;border-bottom:1px solid var(--hair);display:flex;align-items:center;padding:0 20px;gap:14px;background:var(--ink)}
+  .hd h1{font-size:14px;font-weight:600}
+  .hd .path{font-size:11px;color:var(--tx3);font-family:var(--mono)}
+  .hd .right{margin-left:auto;display:flex;gap:14px;font-size:11px;color:var(--tx2);align-items:center}
+  .hd .right b{color:var(--acc);font-family:var(--mono)}
+  .bell{position:relative;cursor:pointer;padding:6px;border-radius:8px;border:1px solid var(--hair)}
+  .bell:hover{border-color:var(--hair2)}
+  .bell .bn{position:absolute;top:-4px;right:-4px;background:var(--bad);color:#fff;font-size:9px;font-family:var(--mono);border-radius:8px;padding:0 5px;font-weight:700}
+  .body{flex:1;overflow:hidden;display:flex;min-width:0}
+  .pg{display:none;flex:1;min-width:0}
+  .pg.on{display:flex;animation:in .2s ease}
+  @keyframes in{from{opacity:0;transform:translateY(3px)}to{opacity:1}}
+
+  .lbl{font-size:9.5px;letter-spacing:2px;text-transform:uppercase;color:var(--tx3);font-weight:600}
+  .mono{font-family:var(--mono);font-size:11.5px}
+  .panel{background:var(--ink);border:1px solid var(--hair);border-radius:10px}
+  .pill{font-family:var(--mono);font-size:9.5px;font-weight:700;padding:2px 8px;border-radius:5px;letter-spacing:.4px;white-space:nowrap}
+  .p-new{color:var(--info);border:1px solid rgba(123,167,232,.4)}
+  .p-ai{color:var(--acc);border:1px solid rgba(63,217,174,.4)}
+  .p-handoff{color:var(--warn);border:1px solid rgba(228,179,99,.5)}
+  .p-review{color:var(--vio);border:1px solid rgba(157,140,255,.45)}
+  .p-human{color:var(--tx);border:1px solid var(--hair2);background:var(--ink2)}
+  .p-done{color:var(--tx2);border:1px solid var(--hair2)}
+  .p-closed{color:var(--tx3);border:1px solid var(--hair)}
+  .p-urgent{color:var(--bad);border:1px solid rgba(228,115,127,.55);background:rgba(228,115,127,.07)}
+  .p-high{color:var(--warn);border:1px solid rgba(228,179,99,.45)}
+  .p-vip{color:var(--vio);border:1px solid rgba(157,140,255,.5)}
+  .tag{font-size:10px;padding:2px 8px;border-radius:5px;background:var(--ink2);border:1px solid var(--hair);color:var(--tx2);white-space:nowrap}
+  .tag.neg{color:var(--bad);border-color:rgba(228,115,127,.35)}
+  .tag.pos{color:var(--acc);border-color:rgba(63,217,174,.3)}
+  .bt{border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;transition:.15s}
+  .bt-pri{background:var(--acc);color:#06120e}.bt-pri:hover{filter:brightness(1.08)}
+  .bt-line{background:transparent;border:1px solid var(--hair2);color:var(--tx2)}.bt-line:hover{color:var(--tx);border-color:var(--tx3)}
+  .bt-warn{background:transparent;border:1px solid rgba(228,179,99,.5);color:var(--warn)}
+  .bt-vio{background:transparent;border:1px solid rgba(157,140,255,.5);color:var(--vio)}
+  .bt:disabled{opacity:.32;cursor:not-allowed}
+  .bt.s{padding:5px 10px;font-size:11px}
+  .sla{font-family:var(--mono);font-size:10px}
+  .sla.ok{color:var(--acc)}.sla.wn{color:var(--warn)}.sla.br{color:var(--bad)}
+
+  /* ===== inbox 3-col ===== */
+  .col-q{width:308px;flex-shrink:0;border-right:1px solid var(--hair);display:flex;flex-direction:column;background:var(--ink)}
+  .qtools{padding:12px 12px 8px;border-bottom:1px solid var(--hair)}
+  .views{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:9px}
+  .vchip{font-size:10.5px;padding:4px 10px;border-radius:12px;border:1px solid var(--hair);color:var(--tx2);cursor:pointer;user-select:none}
+  .vchip.on{color:var(--tx);border-color:var(--acc);background:rgba(63,217,174,.06)}
+  .qsearch input{width:100%;background:var(--ink2);border:1px solid var(--hair);border-radius:8px;padding:7px 11px;color:var(--tx);font-size:12px;font-family:inherit;outline:none}
+  .qsearch input:focus{border-color:var(--tx3)}
+  .qlist{flex:1;overflow:auto}
+  .qt{padding:11px 14px;border-bottom:1px solid var(--hair);cursor:pointer;transition:.1s}
+  .qt:hover{background:rgba(255,255,255,.02)}
+  .qt.sel{background:rgba(63,217,174,.05);border-left:2px solid var(--acc);padding-left:12px}
+  .qt .r1{display:flex;align-items:center;gap:7px;margin-bottom:4px}
+  .qt .tid{font-family:var(--mono);font-size:10.5px;color:var(--tx3)}
+  .qt .subj{font-size:12.5px;font-weight:600;line-height:1.45;margin-bottom:5px}
+  .qt .r3{display:flex;align-items:center;gap:8px;font-size:10px;color:var(--tx3);flex-wrap:wrap}
+  .qt .lock{color:var(--bad)}
+  .qmore{padding:10px;text-align:center;font-size:11px;color:var(--tx3);cursor:pointer}
+  .qmore:hover{color:var(--tx2)}
+
+  .col-c{flex:1;min-width:0;display:flex;flex-direction:column;border-right:1px solid var(--hair)}
+  .chd{padding:12px 18px;border-bottom:1px solid var(--hair);background:var(--ink)}
+  .chd .r1{display:flex;align-items:center;gap:10px}
+  .chd h2{font-size:14px;font-weight:600}
+  .life{display:flex;gap:5px;align-items:center;margin-top:8px;font-size:9.5px;font-family:var(--mono);color:var(--tx3)}
+  .life span.st{padding:2px 8px;border-radius:4px;border:1px solid var(--hair)}
+  .life span.st.done{color:var(--acc);border-color:rgba(63,217,174,.35)}
+  .life span.st.cur{color:var(--tx);border-color:var(--tx3);background:var(--ink2)}
+  .msgs{flex:1;overflow:auto;padding:18px 20px}
+  .m{max-width:78%;margin-bottom:14px;line-height:1.65}
+  .m .who{font-size:9.5px;letter-spacing:1.5px;text-transform:uppercase;color:var(--tx3);margin-bottom:4px;font-weight:600;display:flex;gap:8px;align-items:center}
+  .m .bb{padding:10px 14px;border-radius:4px 12px 12px 12px;background:var(--ink2);border:1px solid var(--hair);font-size:12.5px}
+  .m.out{margin-left:auto}
+  .m.out .who{justify-content:flex-end}
+  .m.out .bb{border-radius:12px 4px 12px 12px;background:rgba(63,217,174,.07);border-color:rgba(63,217,174,.22)}
+  .m.eva .bb{background:rgba(123,167,232,.06);border-color:rgba(123,167,232,.25);border-radius:12px 4px 12px 12px}
+  .m.note .bb{background:rgba(228,179,99,.05);border:1px dashed rgba(228,179,99,.45);border-radius:10px}
+  .m.sys{max-width:100%;text-align:center}
+  .m.sys .bb{background:none;border:none;font-family:var(--mono);font-size:10.5px;color:var(--tx3);padding:0}
+  .tick{font-family:var(--mono);font-size:9.5px;color:var(--tx3)}
+  .tick.ok{color:var(--acc)}
+  .tick.fail{color:var(--bad);cursor:pointer}
+  .cite{display:inline-flex;gap:5px;margin-top:7px;flex-wrap:wrap}
+  .cite span{font-size:9.5px;font-family:var(--mono);padding:2px 8px;border-radius:5px;border:1px solid rgba(123,167,232,.3);color:var(--info);cursor:pointer}
+  .compose{border-top:1px solid var(--hair);background:var(--ink);padding:11px 16px}
+  .cmodes{display:flex;gap:8px;margin-bottom:8px;align-items:center}
+  .cmode{font-size:10.5px;padding:3px 11px;border-radius:11px;border:1px solid var(--hair);color:var(--tx2);cursor:pointer}
+  .cmode.on{color:var(--acc);border-color:rgba(63,217,174,.4)}
+  .cmode.on.note{color:var(--warn);border-color:rgba(228,179,99,.45)}
+  .crow{display:flex;gap:8px}
+  .crow textarea{flex:1;background:var(--ink2);border:1px solid var(--hair);border-radius:9px;padding:9px 12px;color:var(--tx);font-size:12.5px;font-family:inherit;outline:none;resize:none;height:60px;line-height:1.5}
+  .crow textarea:focus{border-color:var(--tx3)}
+  .crow .btcol{display:flex;flex-direction:column;gap:6px}
+
+  .col-x{width:296px;flex-shrink:0;overflow:auto;background:var(--ink);padding:16px}
+  .xsec{margin-bottom:18px}
+  .xsec .lbl{display:block;margin-bottom:8px}
+  .xcard{border:1px solid var(--hair);border-radius:9px;padding:11px 13px;font-size:12px}
+  .xcust{display:flex;gap:11px;align-items:center;margin-bottom:10px}
+  .xcust .av{width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,var(--vio),var(--info));display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px}
+  .xcust b{font-size:13px}
+  .xcust .sub{font-size:10px;color:var(--tx3);font-family:var(--mono)}
+  .kv{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px dashed var(--hair);font-size:11.5px}
+  .kv:last-child{border:none}
+  .kv .k{color:var(--tx3)}
+  .kv .v{font-family:var(--mono);color:var(--tx2)}
+  .kv .v.hot{color:var(--warn)}
+  .aisum{font-size:11.5px;color:var(--tx2);line-height:1.7;border-left:2px solid var(--info);padding:2px 0 2px 11px}
+  .aisum .ts{font-size:9px;color:var(--tx3);font-family:var(--mono);display:block;margin-top:5px}
+  .hist{font-size:11px;padding:7px 0;border-bottom:1px dashed var(--hair);cursor:pointer;color:var(--tx2)}
+  .hist:hover{color:var(--tx)}
+  .hist .hm{font-family:var(--mono);font-size:9.5px;color:var(--tx3)}
+  .nba{border:1px solid var(--hair);border-radius:8px;padding:9px 11px;margin-bottom:7px;font-size:11.5px;display:flex;align-items:center;gap:9px}
+  .nba .txt{flex:1;color:var(--tx2)}
+  .nba .bt{flex-shrink:0}
+
+  /* ===== generic page ===== */
+  .full{flex:1;overflow:auto;padding:20px 22px;min-width:0}
+  .grid{display:grid;gap:14px}
+  .g4{grid-template-columns:repeat(4,1fr)}
+  .g3{grid-template-columns:repeat(3,1fr)}
+  .g2{grid-template-columns:1fr 1fr}
+  @media(max-width:1200px){.g4{grid-template-columns:1fr 1fr}.g3{grid-template-columns:1fr}}
+  .stat{padding:15px 17px}
+  .stat .n{font-size:26px;font-weight:700;font-family:var(--mono);margin:2px 0}
+  .stat .n.acc{color:var(--acc)}.stat .n.warn{color:var(--warn)}.stat .n.bad{color:var(--bad)}.stat .n.vio{color:var(--vio)}
+  .stat .d{font-size:10.5px;color:var(--tx3)}
+  table.x{width:100%;border-collapse:collapse;font-size:12.5px}
+  table.x th{text-align:left;padding:9px 13px;border-bottom:1px solid var(--hair2);font-size:9.5px;letter-spacing:1.8px;text-transform:uppercase;color:var(--tx3);font-weight:600;white-space:nowrap}
+  table.x td{padding:10px 13px;border-bottom:1px solid var(--hair);vertical-align:middle}
+  table.x tr:last-child td{border:none}
+  table.x tr.rw{cursor:pointer}
+  table.x tr.rw:hover{background:rgba(255,255,255,.02)}
+  .sec{margin-bottom:20px}
+  .sec-hd{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+  .sec-hd .lbl{font-size:10px}
+  .alertcard{border:1px solid rgba(228,115,127,.4);border-left:3px solid var(--bad);border-radius:9px;padding:12px 15px;background:rgba(228,115,127,.04);font-size:12px;line-height:1.7}
+  .okcard{border:1px solid rgba(63,217,174,.3);border-left:3px solid var(--acc);border-radius:9px;padding:12px 15px;background:rgba(63,217,174,.04);font-size:12px;line-height:1.7}
+  .hbar{display:flex;align-items:center;gap:9px;font-size:11.5px;padding:6px 0;border-bottom:1px dashed var(--hair)}
+  .hbar:last-child{border:none}
+  .hbar .hk{width:110px;color:var(--tx2);flex-shrink:0}
+  .hbar .tr{flex:1;height:5px;background:var(--hair2);border-radius:3px;overflow:hidden}
+  .hbar .tr i{display:block;height:100%;border-radius:3px;background:var(--acc)}
+  .hbar .hv{font-family:var(--mono);font-size:10px;color:var(--tx2);width:76px;text-align:right}
+  .health{display:inline-flex;align-items:center;gap:6px;font-size:10.5px;font-family:var(--mono)}
+  .dot{width:6px;height:6px;border-radius:50%;display:inline-block}
+  .d-ok{background:var(--acc)}.d-warn{background:var(--warn)}.d-bad{background:var(--bad)}.d-mut{background:var(--tx3)}
+  .stabs{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap}
+  .stab{font-size:11.5px;padding:6px 14px;border-radius:8px;border:1px solid var(--hair);color:var(--tx2);cursor:pointer}
+  .stab.on{color:var(--tx);border-color:var(--acc);background:rgba(63,217,174,.06)}
+  .spg{display:none}.spg.on{display:block;animation:in .2s}
+  .switch{position:relative;width:34px;height:18px;flex-shrink:0;cursor:pointer}
+  .switch input{opacity:0;width:0;height:0}
+  .switch .sl{position:absolute;inset:0;background:var(--hair2);border-radius:10px;transition:.2s}
+  .switch .sl:before{content:"";position:absolute;width:12px;height:12px;left:3px;top:3px;background:var(--tx2);border-radius:50%;transition:.2s}
+  .switch input:checked + .sl{background:rgba(63,217,174,.35)}
+  .switch input:checked + .sl:before{transform:translateX(16px);background:var(--acc)}
+
+  /* modal + toast */
+  .scrim{position:fixed;inset:0;background:rgba(5,8,14,.62);z-index:40;display:none;align-items:center;justify-content:center}
+  .scrim.show{display:flex}
+  .modal{width:480px;max-width:92vw;background:var(--ink);border:1px solid var(--hair2);border-radius:12px;padding:22px;box-shadow:0 24px 80px rgba(0,0,0,.6);max-height:86vh;overflow:auto}
+  .modal h3{font-size:14px;margin-bottom:5px}
+  .modal .msub{font-size:11.5px;color:var(--tx2);line-height:1.65;margin-bottom:13px}
+  .modal textarea,.modal input[type=text]{width:100%;background:var(--ink2);border:1px solid var(--hair);border-radius:8px;padding:10px 12px;color:var(--tx);font-size:12.5px;font-family:inherit;outline:none;line-height:1.6}
+  .modal textarea{min-height:80px;resize:vertical}
+  .mft{display:flex;gap:8px;justify-content:flex-end;margin-top:15px}
+  .wstep{display:flex;gap:10px;padding:10px 0;border-bottom:1px dashed var(--hair);font-size:12px;align-items:flex-start}
+  .wstep:last-child{border:none}
+  .wstep .wn{width:20px;height:20px;border-radius:50%;border:1.5px solid var(--hair2);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:9.5px;color:var(--tx3);flex-shrink:0}
+  .wstep.done .wn{border-color:var(--acc);color:var(--acc)}
+  .note{position:fixed;bottom:18px;right:20px;background:var(--ink);border:1px solid var(--hair2);border-left:2px solid var(--acc);border-radius:9px;padding:12px 16px;font-size:12px;display:none;z-index:50;max-width:400px;box-shadow:0 12px 40px rgba(0,0,0,.5);line-height:1.6}
+  .note.show{display:block;animation:in .2s}
+  .note.push{border-left-color:var(--warn)}
+  @media(max-width:1100px){.col-x{display:none}}
+</style>
+</head>
+<body>
+<div class="frame">
+
+  <aside class="rail">
+    <div class="brand"><div class="t">iCRM <i>v2</i> · 极光幻影</div><div class="s">Parallel World Ops</div></div>
+    <nav class="rnav">
+      <div class="rlink on" data-pg="inbox" onclick="nav('inbox')">收件箱 <span class="n" id="nInbox">4</span></div>
+      <div class="rlink" data-pg="cust" onclick="nav('cust')">客户 360°</div>
+      <div class="rlink" data-pg="review" onclick="nav('review')">审核队列 <span class="n" id="nRev">2</span></div>
+      <div class="rlink" data-pg="kb" onclick="nav('kb')">知识库 <span class="n ok" id="nKb">3 缺口</span></div>
+      <div class="rlink" data-pg="mon" onclick="nav('mon')">主管驾驶舱</div>
+      <div class="rlink" data-pg="set" onclick="nav('set')">设置</div>
+    </nav>
+    <div class="rfoot">
+      <div class="me">
+        <div class="av">PW</div>
+        <div><b>Parallel World 管理员</b><span class="mail">crm@parallelworldgame.com</span></div>
+      </div>
+    </div>
+  </aside>
+
+  <div class="shell">
+    <div class="hd">
+      <h1 id="hdT">收件箱</h1>
+      <span class="path" id="hdP">/inbox</span>
+      <div class="right">
+        <span>今日 <b>32</b> 单</span><span>AI 自主解决 <b>61%</b></span><span>SLA 风险 <b style="color:var(--warn)">2</b></span>
+        <div class="bell" onclick="say('通知中心：新转人工 1 · SLA 临期 2 · 审批待办 2（原型演示）','push')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+          <span class="bn" id="bellN">5</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="body">
+
+      <!-- ================= INBOX ================= -->
+      <div class="pg on" id="pg-inbox">
+        <div class="col-q">
+          <div class="qtools">
+            <div class="views" id="views"></div>
+            <div class="qsearch"><input placeholder="搜索：主题 / 消息内容 / 客户 / #工单号" id="qSearch" oninput="renderQ()"></div>
+          </div>
+          <div class="qlist" id="qList"></div>
+        </div>
+        <div class="col-c" id="colC"></div>
+        <div class="col-x" id="colX"></div>
+      </div>
+
+      <!-- ================= CUSTOMERS ================= -->
+      <div class="pg" id="pg-cust"><div class="full" id="custFull"></div></div>
+
+      <!-- ================= REVIEW ================= -->
+      <div class="pg" id="pg-review"><div class="full" id="revFull"></div></div>
+
+      <!-- ================= KB ================= -->
+      <div class="pg" id="pg-kb"><div class="full" id="kbFull"></div></div>
+
+      <!-- ================= MONITOR ================= -->
+      <div class="pg" id="pg-mon"><div class="full" id="monFull"></div></div>
+
+      <!-- ================= SETTINGS ================= -->
+      <div class="pg" id="pg-set"><div class="full" id="setFull"></div></div>
+
+    </div>
+  </div>
+</div>
+
+<div class="scrim" id="scrim"><div class="modal" id="modalBox"></div></div>
+<div class="note" id="note"></div>
+
+<script>
+/* ============ data ============ */
+const CUSTOMERS = {
+  aisyah:{name:'Aisyah',key:'PW-88214',ch:'Telegram + LiveChat',ltv:'RM 4,820',mrr:'月充 RM 620',risk:72,riskTxt:'流失风险 高',vip:true,tags:['VIP','夺宝常客','情绪波动'],
+    sum:'2.4 年老玩家，月充值前 5%。近 30 天两次投诉发放延迟，情绪由中性转强负面；上周提现工单 6 小时才响应。建议优先处理并主动补偿。',
+    hist:[['#1042 · 夺宝抽奖结果没有到账','handoff · 今天'],['#0991 · 提现到钱包一直 pending','已解决 · 3 天前'],['#0872 · 排行榜奖励领取','AI 解决 · 12 天前']],
+    orders:[['PW-20260714-0552','夺宝十连 · RM 128','已支付'],['PW-20260701-0311','月卡 · RM 98','已支付']]},
+  wenjie:{name:'Wen Jie',key:'PW-01765',ch:'LiveChat',ltv:'RM 310',mrr:'月充 RM 45',risk:18,riskTxt:'流失风险 低',vip:false,tags:['活动玩家'],
+    sum:'活跃 8 个月，客单低但登录频繁。历史 3 单全部 AI 解决，满意度 5/5。本次为活动道具补发咨询。',
+    hist:[['#1044 · S12 夺宝道具补发','审核中 · 今天'],['#0765 · 排行榜结算时间','AI 解决 · 28 天前']],
+    orders:[['PW-20260622-1103','夺宝单抽 · RM 15','已支付']]},
+  daniel:{name:'Daniel',key:'PW-05122',ch:'Email',ltv:'RM 1,240',mrr:'—',risk:91,riskTxt:'流失风险 极高',vip:false,tags:['PDPA','账号安全'],
+    sum:'近 7 天改绑邮箱后提出 PDPA 数据删除请求，账户尚有进行中订单 1 笔。法务审核链进行中，全程按受控模板沟通。',
+    hist:[['#1043 · 账户数据删除请求（PDPA）','审核中 · 今天']],
+    orders:[['PW-20260710-0221','进行中 · 皮肤礼包 RM 60','待发放']]},
+  mei:{name:'小美',key:'PW-30991',ch:'LiveChat',ltv:'RM 86',mrr:'—',risk:35,riskTxt:'流失风险 中',vip:false,tags:['新玩家'],
+    sum:'注册 14 天新玩家，首充后询问积分规则。两次咨询均 AI 即时解决，是转化观察对象。',
+    hist:[['#1045 · 积分兑换比例','AI 处理中 · 刚刚']],
+    orders:[['PW-20260716-0090','首充礼包 · RM 30','已支付']]},
+};
+
+const TICKETS = [
+  {id:'#1042',cust:'aisyah',subj:'夺宝抽奖结果没有到账',st:'handoff',pr:'urgent',ch:'telegram',intent:'发放异常',senti:'neg',sla:26,slaT:60,lock:null,
+   msgs:[
+    {r:'in',t:'我今天早上参加夺宝抽中了道具，但是背包里一直没有到账，麻烦查一下。',ts:'09:12'},
+    {r:'eva',t:'您好，我是 EVA～已查询到您 08:47 的夺宝记录，系统显示发放队列有延迟，通常 30 分钟内自动补发，请您稍后刷新背包确认。',ts:'09:12',cite:['KB-012 夺宝发放规则','ACT 查询发放队列'],dv:'ok'},
+    {r:'in',t:'已经过了一个小时了还是没有，帮我转人工。',ts:'10:15'},
+    {r:'sys',t:'用户请求人工 · EVA 交接摘要已生成 · SLA 60 分钟计时开始',ts:'10:15'},
+    {r:'note',t:'【AI 交接摘要】诉求：夺宝道具未到账（订单 PW-20260714-0552）。EVA 已试：查发放队列（确有延迟标记）。建议下一步：核对 GM 后台发放日志 → 若卡单走手工补发 SOP-07。客户为 VIP，情绪强负面，建议附补偿。',ts:'10:15'}]},
+  {id:'#1044',cust:'wenjie',subj:'S12 夺宝道具补发申请',st:'review',pr:'high',ch:'livechat',intent:'活动补发',senti:'neu',sla:96,slaT:120,lock:null,
+   msgs:[
+    {r:'in',t:'S12 夺宝我中的皮肤一直没到，现在活动结束了还能补吗？',ts:'11:02'},
+    {r:'eva',t:'已核实您在 S12 的中奖记录属实。由于活动发放通道已关闭，需专员通过内部流程补发。申请已提交（REQ-0032），预计 2 小时内答复，进度会实时同步给您。',ts:'11:03',cite:['R-133 活动道具发放窗口','先例 REQ-0025'],dv:'ok'},
+    {r:'sys',t:'评估 D · 技术不可行 → 送审 S1 · 工单转入 review 状态（EVA 暂停接管）',ts:'11:03'}]},
+  {id:'#1043',cust:'daniel',subj:'账户数据删除请求（PDPA）',st:'review',pr:'urgent',ch:'email',intent:'合规请求',senti:'neu',sla:12,slaT:45,lock:null,
+   msgs:[
+    {r:'in',t:'根据 PDPA 我要求你们删除我的账户和所有个人资料。',ts:'08:40'},
+    {r:'eva',t:'已收到您的数据删除请求（REQ-0033）。此类请求依法需经数据保护流程审核，我们将在法定时限内正式回复您，期间您的资料不会用于任何营销用途。',ts:'08:41',cite:['R-201 PDPA 数据删除'],dv:'ok'},
+    {r:'sys',t:'评估 E · 法务维度触发 → S3 三层链 · 组长/Supervisor 已过 · 待 Legal 终审',ts:'14:10'}]},
+  {id:'#1045',cust:'mei',subj:'积分兑换比例是多少',st:'ai',pr:'normal',ch:'livechat',intent:'规则咨询',senti:'pos',sla:null,slaT:null,lock:null,
+   msgs:[
+    {r:'in',t:'请问积分兑换比例是多少？',ts:'刚刚'},
+    {r:'eva',t:'您好～当前积分兑换比例是 100 积分 = RM1 代金券，每周三可在「福利中心 → 积分商城」兑换，本周您还有 2 次兑换机会哦。',ts:'刚刚',cite:['L1 标签库 · 积分规则','KB-004 积分商城'],dv:'ok'}]},
+  {id:'#1041',cust:'aisyah',subj:'提现到钱包一直 pending',st:'done',pr:'high',ch:'livechat',intent:'支付异常',senti:'neu',sla:null,slaT:null,lock:null,
+   msgs:[{r:'in',t:'PWV 提现到钱包已经 pending 六个小时了，正常吗？',ts:'3 天前'},
+    {r:'out',t:'您好，已为您查到该笔提现卡在链上高峰期，已手工加速，10 分钟内到账。给您带来不便，补偿 50 积分已发放。',ts:'3 天前',dv:'ok'},
+    {r:'sys',t:'已解决 · CSAT 已回收：★★★★★「处理很快，谢谢」',ts:'3 天前'}]},
+];
+
+const REVIEWS = [
+  {id:'REQ-0032',tk:'#1044',cust:'Wen Jie',sum:'补发已结束活动的夺宝道具',verdict:'D · 技术不可行',risk:52,sv:1,sla:'96m / 120m',slaCls:'ok',
+   chain:[{role:'组长 · Mei Ling',st:'cur'}],rules:['R-133 活动道具发放窗口 v1'],prec:'REQ-0025（06-28）同类 · 中奖属实 → 批准，GM 工具手工发放'},
+  {id:'REQ-0033',tk:'#1043',cust:'Daniel',sum:'账户数据永久删除（PDPA）',verdict:'E · 强制送审',risk:91,sv:3,sla:'12m / 45m',slaCls:'wn',
+   chain:[{role:'组长 · Mei Ling',st:'done'},{role:'Supervisor · Kendrick',st:'done'},{role:'Legal · 外部顾问',st:'cur'}],rules:['R-201 PDPA 数据删除 v2'],prec:'REQ-0011（05-12）→ 部分批准：匿名化个人字段，交易记录法定保留'}
+];
+
+const MACROS = ['您好，我是人工客服 {me}，正在为您核查，请稍等。','已为您加急处理，预计 {n} 分钟内反馈结果。','为表歉意已发放 {n} 积分补偿，感谢您的耐心。'];
+
+/* ============ state ============ */
+let VIEW='active', SEL='#1042', CMODE='reply', shownCount=4;
+const $=id=>document.getElementById(id);
+let nt;function say(m,cls){const n=$('note');n.textContent=m;n.className='note show'+(cls?' '+cls:'');clearTimeout(nt);nt=setTimeout(()=>n.classList.remove('show'),4600);}
+
+/* ============ inbox ============ */
+const VIEWS=[['active','活跃 · 优先'],['mine','我的'],['sla','SLA 风险'],['vip','VIP'],['review','审核中'],['closed','已解决/关闭']];
+function renderViews(){
+  $('views').innerHTML=VIEWS.map(v=>`<span class="vchip${VIEW===v[0]?' on':''}" onclick="VIEW='${v[0]}';renderQ()">${v[1]}</span>`).join('');
+}
+function tList(){
+  const q=($('qSearch')?.value||'').trim().toLowerCase();
+  let l=TICKETS.filter(t=>{
+    if(VIEW==='closed')return t.st==='done'||t.st==='closed';
+    if(VIEW==='review')return t.st==='review';
+    if(VIEW==='sla')return t.sla!==null&&t.sla<=t.slaT*0.5&&t.st!=='done';
+    if(VIEW==='vip')return CUSTOMERS[t.cust].vip&&t.st!=='done'&&t.st!=='closed';
+    if(VIEW==='mine')return t.lock==='me';
+    return t.st!=='done'&&t.st!=='closed';
+  });
+  if(q)l=l.filter(t=>t.subj.toLowerCase().includes(q)||t.id.includes(q)||CUSTOMERS[t.cust].name.toLowerCase().includes(q)||t.msgs.some(m=>m.t.toLowerCase().includes(q)));
+  const rank={urgent:0,high:1,normal:2};
+  return l.sort((a,b)=>(a.sla===null?999:a.sla)-(b.sla===null?999:b.sla)||rank[a.pr]-rank[b.pr]);
+}
+const PILL={new:'p-new|新建',ai:'p-ai|AI 处理',handoff:'p-handoff|待接管',review:'p-review|审核中',human:'p-human|人工',done:'p-done|已解决',closed:'p-closed|已关闭'};
+function slaHtml(t){if(t.sla===null)return'';const c=t.sla<0?'br':t.sla<=t.slaT*0.5?'wn':'ok';return`<span class="sla ${c}">SLA ${t.sla<0?'超时':t.sla+'m'}</span>`;}
+function renderQ(){
+  renderViews();
+  const l=tList();
+  $('qList').innerHTML=l.slice(0,shownCount).map(t=>{
+    const [pc,pt]=PILL[t.st].split('|');const c=CUSTOMERS[t.cust];
+    return`<div class="qt${t.id===SEL?' sel':''}" onclick="SEL='${t.id}';renderQ();renderC()">
+      <div class="r1"><span class="tid">${t.id}</span><span class="pill ${pc}">${pt}</span>${t.pr!=='normal'?`<span class="pill p-${t.pr}">${t.pr==='urgent'?'紧急':'高'}</span>`:''}${c.vip?'<span class="pill p-vip">VIP</span>':''}</div>
+      <div class="subj">${t.subj}</div>
+      <div class="r3"><span>${t.ch}</span><span>${c.name}</span><span class="tag${t.senti==='neg'?' neg':t.senti==='pos'?' pos':''}">${t.intent}</span>${slaHtml(t)}${t.lock&&t.lock!=='me'?`<span class="lock">🔒 ${t.lock}</span>`:''}</div>
+    </div>`;
+  }).join('')+(l.length>shownCount?`<div class="qmore" onclick="shownCount+=25;renderQ()">加载更多（共 ${l.length} 单，已显示 ${Math.min(shownCount,l.length)}）</div>`:'');
+}
+function renderC(){
+  const t=TICKETS.find(x=>x.id===SEL);if(!t){$('colC').innerHTML='';$('colX').innerHTML='';return;}
+  const [pc,pt]=PILL[t.st].split('|');
+  const LIFE=['新建','AI','转人工','审核','人工','解决'];
+  const curMap={new:0,ai:1,handoff:2,review:3,human:4,done:5,closed:5};
+  const cur=curMap[t.st];
+  $('colC').innerHTML=`
+    <div class="chd">
+      <div class="r1"><h2>${t.subj}</h2><span class="pill ${pc}">${pt}</span><span class="tid mono" style="color:var(--tx3)">${t.id}</span><span style="margin-left:auto">${slaHtml(t)}</span></div>
+      <div class="life">${LIFE.map((s,i)=>`<span class="st${i<cur?' done':i===cur?' cur':''}">${s}</span>`).join('<span>→</span>')}</div>
+    </div>
+    <div class="msgs" id="msgs">${t.msgs.map(m=>msgHtml(m)).join('')}</div>
+    <div class="compose">
+      <div class="cmodes">
+        <span class="cmode${CMODE==='reply'?' on':''}" onclick="CMODE='reply';renderC()">回复客户</span>
+        <span class="cmode${CMODE==='note'?' on note':''}" onclick="CMODE='note';renderC()">内部备注</span>
+        <span style="margin-left:auto;font-size:10px;color:var(--tx3)">Enter 发送 · 输入法组词受保护 · Shift+Enter 换行</span>
+      </div>
+      <div class="crow">
+        <textarea id="draft" placeholder="${CMODE==='reply'?'输入回复… 输入 / 唤出快捷回复':'内部备注 — 绝不会发送给客户'}"></textarea>
+        <div class="btcol">
+          <button class="bt bt-vio s" onclick="aiDraft()">✦ AI 起草</button>
+          <button class="bt bt-line s" onclick="macro()">/ 宏</button>
+          <button class="bt bt-pri s" onclick="send()">${CMODE==='reply'?'发送':'保存备注'}</button>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:9px">
+        ${t.st==='handoff'?`<button class="bt bt-pri s" onclick="claim()">接管此单</button>`:''}
+        ${t.st==='review'?`<button class="bt bt-vio s" onclick="nav('review')">查看审核链 →</button>`:''}
+        ${(t.st==='human'||t.st==='ai'||t.st==='handoff')?`<button class="bt bt-line s" onclick="resolve()">标记解决</button>`:''}
+        ${t.st==='done'?`<button class="bt bt-line s" onclick="say('已重新打开为人工处理（7 天内直接重开；超期自动生成关联新单）')">重新打开</button>`:''}
+      </div>
+    </div>`;
+  const el=$('msgs');el.scrollTop=el.scrollHeight;
+  renderX(t);
+}
+function msgHtml(m){
+  if(m.r==='sys')return`<div class="m sys"><div class="bb">— ${m.t} —</div></div>`;
+  const cls=m.r==='in'?'':m.r==='eva'?'out eva':m.r==='note'?'note':'out';
+  const who=m.r==='in'?'玩家':m.r==='eva'?'EVA · AI':m.r==='note'?'内部备注 · 仅团队可见':'人工 · 我';
+  const dv=m.dv?`<span class="tick ${m.dv==='ok'?'ok':m.dv==='fail'?'fail':''}" ${m.dv==='fail'?`onclick="say('已重新投递 ✓（出站队列自动重试 3 次后可手动重发）')"`:''}>${m.dv==='ok'?'✓✓ 已送达':m.dv==='fail'?'✗ 投递失败 · 点击重试':'✓ 投递中'}</span>`:'';
+  const cite=m.cite?`<div class="cite">${m.cite.map(c=>`<span onclick="say('来源：${c} — 点击可展开原文（引用链路全程入审计）')">⌕ ${c}</span>`).join('')}</div>`:'';
+  return`<div class="m ${cls}"><div class="who">${who}<span class="mono" style="letter-spacing:0;color:var(--tx3)">${m.ts||''}</span>${dv}</div><div class="bb">${m.t}${cite}</div></div>`;
+}
+function renderX(t){
+  const c=CUSTOMERS[t.cust];
+  $('colX').innerHTML=`
+    <div class="xsec"><span class="lbl">客户 360°</span>
+      <div class="xcard">
+        <div class="xcust"><div class="av">${c.name[0]}</div><div><b>${c.name}</b> ${c.vip?'<span class="pill p-vip">VIP</span>':''}<div class="sub">${c.key} · ${c.ch}</div></div></div>
+        <div class="kv"><span class="k">累计充值 LTV</span><span class="v">${c.ltv}</span></div>
+        <div class="kv"><span class="k">近期</span><span class="v">${c.mrr}</span></div>
+        <div class="kv"><span class="k">${c.riskTxt}</span><span class="v ${c.risk>60?'hot':''}">${c.risk} / 100</span></div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:9px">${c.tags.map(g=>`<span class="tag">${g}</span>`).join('')}</div>
+      </div></div>
+    <div class="xsec"><span class="lbl">AI 历史摘要</span>
+      <div class="aisum">${c.sum}<span class="ts">生成于 10:20 · 缓存 · 点击可刷新</span></div></div>
+    <div class="xsec"><span class="lbl">建议下一步 · AI</span>
+      ${t.st==='handoff'?`
+      <div class="nba"><span class="txt">查询 GM 发放日志（订单 PW-…0552）</span><button class="bt bt-pri s" onclick="say('✓ 已执行（自动档 · 查询类零审批）：日志显示道具卡在发放队列，状态 stuck。结果已附入工单，调用入审计。')">执行</button></div>
+      <div class="nba"><span class="txt">手工补发道具（SOP-07）</span><button class="bt bt-warn s" onclick="say('已提交审批（需审批档）：补发属写操作，已进入审核队列 S1 · 组长层，SLA 2 小时。客户已收到「处理中」进度更新。')">提审批</button></div>
+      <div class="nba"><span class="txt">VIP 负面情绪 → 发放 100 积分安抚</span><button class="bt bt-warn s" onclick="say('已提交审批：补偿发放需组长确认（金额档内可配为自动）。')">提审批</button></div>`
+      :t.st==='review'?`<div class="nba"><span class="txt">等待审核链结论 — 客户每次层级推进都会自动收到进度更新</span></div>`
+      :`<div class="nba"><span class="txt">对话顺畅，无需干预。解决后将自动发送 CSAT 回访。</span></div>`}
+    </div>
+    <div class="xsec"><span class="lbl">历史工单</span>${c.hist.map(h=>`<div class="hist">${h[0]}<div class="hm">${h[1]}</div></div>`).join('')}</div>
+    <div class="xsec"><span class="lbl">订单 / 充值</span>${c.orders.map(o=>`<div class="hist">${o[1]}<div class="hm">${o[0]} · ${o[2]}</div></div>`).join('')}</div>`;
+}
+function claim(){
+  const t=TICKETS.find(x=>x.id===SEL);t.st='human';t.lock='me';
+  t.msgs.push({r:'sys',t:'我已接管此工单（协作锁生效 · 其他同事看到冲突提示）',ts:now()});
+  say('已接管。协作锁已生效：其他客服打开此单会看到冲突横幅、输入禁用。');renderQ();renderC();
+}
+function resolve(){
+  const t=TICKETS.find(x=>x.id===SEL);t.st='done';t.lock=null;t.sla=null;
+  t.msgs.push({r:'sys',t:'已标记解决 · CSAT 回访已通过原渠道发送给客户 · 7 天无回复自动关闭',ts:now()});
+  say('已解决。CSAT 回访已自动发出；锁已释放。');renderQ();renderC();
+}
+function send(){
+  const d=$('draft').value.trim();if(!d)return say('内容为空');
+  const t=TICKETS.find(x=>x.id===SEL);
+  if(CMODE==='note'){t.msgs.push({r:'note',t:d,ts:now()});say('内部备注已保存（客户不可见）。');}
+  else{
+    if(t.st==='handoff'){t.st='human';t.lock='me';t.msgs.push({r:'sys',t:'回复即接管：状态 → 人工处理，协作锁生效',ts:now()});}
+    const m={r:'out',t:d,ts:now(),dv:'pend'};t.msgs.push(m);
+    setTimeout(()=>{m.dv='ok';renderC();},900);
+    say('已发送 → 出站投递队列（'+t.ch+'）。送达状态实时回写。');
+  }
+  renderQ();renderC();
+}
+function aiDraft(){
+  const t=TICKETS.find(x=>x.id===SEL);
+  const drafts={
+    '#1042':'Aisyah 您好，非常抱歉让您久等了。已核实您 08:47 的夺宝道具确实卡在发放队列（订单 PW-20260714-0552），我已手工触发补发，5 分钟内到账；同时为您申请了 100 积分补偿。到账后麻烦您确认一下背包～',
+  };
+  $('draft').value=drafts[t.id]||'您好，已为您核实情况，正在加急处理，稍后同步结果。';
+  say('AI 草稿已生成（引用：KB-012 夺宝发放规则 · GM 日志查询结果 · SOP-07）。请人工确认后发送——采纳率会计入 AI 效果报表。');
+}
+function macro(){
+  $('draft').value=MACROS[0].replace('{me}','PW 客服');
+  say('宏已插入（/ 可搜索全部快捷回复，变量自动填充）。');
+}
+function now(){return new Date().toTimeString().slice(0,5);}
+
+/* ============ customers page ============ */
+function renderCust(){
+  $('custFull').innerHTML=`
+  <div class="sec"><div class="sec-hd"><span class="lbl">客户分群</span>
+    <span class="tag pos">全部 412</span><span class="tag">VIP 18</span><span class="tag neg">流失风险 9</span><span class="tag">新玩家（14 天）31</span><span class="tag">PDPA/合规 1</span>
+    <span style="margin-left:auto;font-size:10.5px;color:var(--tx3)">分群可保存并作为自动化规则条件</span></div>
+  <div class="panel"><table class="x">
+    <tr><th>客户</th><th>渠道身份</th><th>LTV</th><th>流失风险</th><th>标签</th><th>最近工单</th></tr>
+    ${Object.entries(CUSTOMERS).map(([k,c])=>`<tr class="rw" onclick="say('客户详情页：全渠道时间线 / 订单 / 工单 / 情绪趋势（原型 — 点收件箱右栏体验完整 360°）')">
+      <td><b>${c.name}</b> ${c.vip?'<span class="pill p-vip">VIP</span>':''}<div class="mono" style="color:var(--tx3);font-size:10px">${c.key}</div></td>
+      <td style="font-size:11.5px;color:var(--tx2)">${c.ch}<div style="font-size:10px;color:var(--tx3)">跨渠道自动并线 ✓</div></td>
+      <td class="mono">${c.ltv}</td>
+      <td><span class="sla ${c.risk>60?'br':c.risk>30?'wn':'ok'}">${c.risk}</span></td>
+      <td>${c.tags.slice(0,2).map(g=>`<span class="tag">${g}</span>`).join(' ')}</td>
+      <td style="font-size:11.5px;color:var(--tx2)">${c.hist[0][0]}</td></tr>`).join('')}
+  </table></div></div>`;
+}
+
+/* ============ review page ============ */
+function renderRev(){
+  $('revFull').innerHTML=`
+  <div class="sec"><div class="sec-hd"><span class="lbl">审核队列 · SLA 剩余 ↑ + Risk ↓ 复合排序 · S2+ 禁止批量</span></div>
+  <div class="panel"><table class="x">
+    <tr><th>REQ</th><th>工单 · 客户</th><th>判定</th><th>Risk</th><th>敏感度</th><th>审批链</th><th>SLA</th><th></th></tr>
+    ${REVIEWS.map((r,i)=>`<tr class="rw">
+      <td class="mono">${r.id}</td>
+      <td><b>${r.sum}</b><div class="mono" style="color:var(--tx3);font-size:10px">${r.tk} · ${r.cust}</div></td>
+      <td style="font-size:11.5px;color:var(--tx2)">${r.verdict}</td>
+      <td class="mono" style="color:${r.risk>=85?'var(--bad)':r.risk>=65?'var(--warn)':'var(--tx2)'}">${r.risk}</td>
+      <td><span class="pill ${r.sv>=3?'p-urgent':r.sv>=2?'p-high':'p-human'}">S${r.sv}</span></td>
+      <td style="font-size:11px;color:var(--tx2)">${r.chain.map(s=>`<span style="color:${s.st==='done'?'var(--acc)':s.st==='cur'?'var(--info)':'var(--tx3)'}">${s.st==='done'?'✓':'●'} ${s.role}</span>`).join(' → ')}</td>
+      <td><span class="sla ${r.slaCls}">${r.sla}</span></td>
+      <td><button class="bt bt-pri s" onclick="revModal(${i})">审核</button></td></tr>`).join('')}
+  </table></div></div>
+  <div class="sec grid g3">
+    <div class="panel stat"><div class="d">今日送审</div><div class="n">6</div><div class="d">C 2 · D 3 · E 1</div></div>
+    <div class="panel stat"><div class="d">SLA 达成率</div><div class="n acc">97.8%</div><div class="d">S3 目标 95%（按评审调参后口径）</div></div>
+    <div class="panel stat"><div class="d">AI 判定被推翻率</div><div class="n warn">11.2%</div><div class="d">&lt;15% 健康 · 按规则聚合出修订建议</div></div>
+  </div>
+  <div class="okcard">已按评审报告修正的行为：升级敏感度会<strong>跳过已在链上的审批人</strong>并指派候补（职责分离硬约束）；「要求补充」真实流转 returned_for_info 并通知客户；新增「转人工直接接管会话」动作；评估器只闸写操作意图，查询类走确定性快速通道。</div>`;
+}
+function revModal(i){
+  const r=REVIEWS[i];
+  openModal(`<h3>审核 · ${r.id}</h3>
+  <div class="msub">${r.sum} · Risk ${r.risk} · S${r.sv} — 客户已收到「审核中 + 预计答复时间」，每次层级推进自动推送进度</div>
+  <div class="xcard" style="margin-bottom:10px"><span class="lbl">引用规则</span><div style="margin-top:6px;font-size:12px">${r.rules.map(x=>`<div>⌕ ${x}</div>`).join('')}</div></div>
+  <div class="xcard" style="margin-bottom:10px"><span class="lbl">先例（近 90 天）</span><div style="margin-top:6px;font-size:12px;color:var(--tx2)">${r.prec}</div></div>
+  <textarea id="revReason" placeholder="决定理由（S2+ 同意与拒绝均必填 · 进入审计 · 拒绝时转化为客户礼貌答复的依据）"></textarea>
+  <div class="mft">
+    <button class="bt bt-line" onclick="closeModal()">取消</button>
+    <button class="bt bt-line" onclick="closeModal();say('已退回补充：链状态 returned_for_info，AI 向客户收集材料，补齐后回原层续审、SLA 重新起算。')">要求补充</button>
+    <button class="bt bt-warn" onclick="closeModal();say('已转人工接管：会话直接进入我的收件箱，审核链挂起。')">转人工接管</button>
+    <button class="bt bt-pri" onclick="revApprove(${i})">同意</button>
+  </div>`);
+}
+function revApprove(i){
+  const r=REVIEWS[i];const t=$('revReason').value.trim();
+  if(r.sv>=2&&!t)return say('S2+ 同意必须写理由（进入审计）');
+  closeModal();
+  const next=r.chain.find(s=>s.st!=='done'&&s.st!=='cur');
+  say(r.chain.filter(s=>s.st==='cur')[0].role+' 已同意'+(next?` → 流转至 ${next.role}，SLA 时钟重置，客户已收到进度更新。`:' → 全链通过，接回执行流程（审核同意 ≠ 跳过客户确认）。'));
+}
+
+/* ============ kb page ============ */
+function renderKb(){
+  $('kbFull').innerHTML=`
+  <div class="stabs"><span class="stab on">文章（对全员可读）</span><span class="stab" onclick="say('原型演示以缺口清单为主')">分类</span></div>
+  <div class="sec"><div class="sec-hd"><span class="lbl">知识缺口 · 由转人工/低置信度聚类自动发现</span></div>
+  <div class="panel"><table class="x">
+    <tr><th>缺口主题</th><th>近 7 天关联工单</th><th>建议</th><th></th></tr>
+    <tr><td><b>合服后的补偿领取路径</b></td><td class="mono">23</td><td style="font-size:11.5px;color:var(--tx2)">无对应文章 → EVA 全部转人工</td><td><button class="bt bt-pri s" onclick="say('已从 23 张工单生成文章草稿 → 待管理员审批（pending_confirmation，审批后才进入 EVA 检索）')">生成草稿</button></td></tr>
+    <tr><td><b>PWV 提现到账时效</b></td><td class="mono">11</td><td style="font-size:11.5px;color:var(--tx2)">现有 KB-009 命中率低，建议改写</td><td><button class="bt bt-line s" onclick="say('已打开改写建议 diff（原型）')">查看建议</button></td></tr>
+    <tr><td><b>S13 赛季道具继承规则</b></td><td class="mono">8</td><td style="font-size:11.5px;color:var(--tx2)">新活动上线前预写</td><td><button class="bt bt-line s" onclick="say('已建跟进任务并指派运营（原型）')">建任务</button></td></tr>
+  </table></div></div>
+  <div class="sec"><div class="sec-hd"><span class="lbl">文章</span><button class="bt bt-pri s" style="margin-left:auto" onclick="say('新建文章：Markdown 编辑 · 版本历史 · 审批后 synced 才参与 EVA 检索（语义检索 pgvector）')">新建</button></div>
+  <div class="grid g2">
+    ${[['KB-012 夺宝发放规则与延迟处理','synced · 被引用 214 次 · 解决率贡献 ↑'],['KB-004 积分商城与兑换比例','synced · 被引用 178 次'],['KB-009 PWV 提现时效说明','stale · 命中率下降 — 缺口清单建议改写'],['KB-015 换绑邮箱操作路径','synced · 被引用 96 次']].map(a=>`
+    <div class="panel" style="padding:14px 16px;cursor:pointer" onclick="say('全员可读全文；引用链路可追溯到每条 EVA 回复（修复 B-08）')">
+      <b style="font-size:12.5px">${a[0]}</b><div style="font-size:10.5px;color:var(--tx3);margin-top:5px;font-family:var(--mono)">${a[1]}</div>
+    </div>`).join('')}
+  </div></div>`;
+}
+
+/* ============ monitor page ============ */
+function renderMon(){
+  $('monFull').innerHTML=`
+  <div class="sec grid g4">
+    <div class="panel stat"><div class="d">今日工单</div><div class="n">32</div><div class="d">较昨日 +18%</div></div>
+    <div class="panel stat"><div class="d">AI 自主解决率</div><div class="n acc">61%</div><div class="d">目标 65% · 每条含来源引用</div></div>
+    <div class="panel stat"><div class="d">CSAT</div><div class="n acc">4.6</div><div class="d">回收率 31% · 差评自动建跟进</div></div>
+    <div class="panel stat"><div class="d">SLA 风险</div><div class="n warn">2</div><div class="d">#1042 · REQ-0033</div></div>
+  </div>
+  <div class="sec"><div class="alertcard"><b>⚠ 异常聚类（14:05 检测）</b> — 过去 1 小时 14 张工单提到「充值失败」，集中在 Google Play 渠道，疑似支付网关事故。已自动：① 建议临时标签答案（待确认）② 通知值班主管 ③ 关联工单已聚合，可一键批量安抚（每单独立审计行）。<button class="bt bt-warn s" style="margin-left:10px" onclick="say('事故模式已开启：聚合裁决 + 批量应用 + 状态页草稿已生成')">进入事故模式</button></div></div>
+  <div class="sec grid g2">
+    <div class="panel" style="padding:16px 18px">
+      <div class="sec-hd"><span class="lbl">AI 成本中心 · 本月（逐笔可对账 routing_logs）</span></div>
+      <div class="hbar"><span class="hk">L1 标签库</span><div class="tr"><i style="width:64%"></i></div><span class="hv">2,410 次 · $0</span></div>
+      <div class="hbar"><span class="hk">L2 本地模型</span><div class="tr"><i style="width:38%;background:var(--info)"></i></div><span class="hv">1,422 次 · $0.57</span></div>
+      <div class="hbar"><span class="hk">L3 Claude</span><div class="tr"><i style="width:11%;background:var(--vio)"></i></div><span class="hv">402 次 · $4.82</span></div>
+      <div class="hbar"><span class="hk">翻译 / 摘要</span><div class="tr"><i style="width:8%;background:var(--warn)"></i></div><span class="hv">$1.10</span></div>
+      <div style="font-size:11px;color:var(--tx2);margin-top:10px">本月 AI 合计 <b class="mono" style="color:var(--acc)">$6.49</b> · 估算节省人工 <b class="mono" style="color:var(--acc)">137 小时</b> · 预算 $50，用量 13% <span style="color:var(--tx3)">— 单价随 env 配置实时同步（修复 B-13）</span></div>
+    </div>
+    <div class="panel" style="padding:16px 18px">
+      <div class="sec-hd"><span class="lbl">团队 · 实时</span></div>
+      ${[['Kendrick Chan','在线 · 处理 2 单 · 平均响应 3.2m','ok'],['KC Lim','在线 · 处理 1 单 · 平均响应 4.1m','ok'],['Mei Ling（组长）','审核队列 2 件待办','warn'],['EVA · AI','并发处理 6 会话 · 队列 0 积压','ok']].map(a=>`
+      <div class="kv"><span class="k">${a[0]}</span><span class="health"><span class="dot d-${a[1].includes('待办')?'warn':'ok'}"></span>${a[1]}</span></div>`).join('')}
+      <div style="margin-top:12px" class="xcard"><span class="lbl">AI 日报 · 14:00 生成</span>
+      <div style="font-size:11.5px;color:var(--tx2);line-height:1.7;margin-top:6px">今日 32 单（AI 解决 61%）。<u onclick="say('下钻：14 张关联工单列表（每条结论可点开底层数据 — 反幻觉设计）')" style="cursor:pointer">充值失败聚类 ⚠</u> 待处理；VIP Aisyah 情绪转负建议主管跟进；知识缺口「合服补偿」建议今日发布。<span style="color:var(--tx3)">已推送邮件 + Telegram。</span></div></div>
+    </div>
+  </div>
+  <div class="sec"><div class="sec-hd"><span class="lbl">AI 质检（全量会话自动评分）</span></div>
+  <div class="panel"><table class="x">
+    <tr><th>会话</th><th>准确</th><th>合规</th><th>语气</th><th>综合</th><th>状态</th></tr>
+    <tr><td class="mono">#1041 · 人工</td><td>98</td><td>100</td><td>96</td><td><b style="color:var(--acc)">98</b></td><td><span class="tag pos">通过</span></td></tr>
+    <tr><td class="mono">#1038 · EVA</td><td>91</td><td>100</td><td>99</td><td><b style="color:var(--acc)">95</b></td><td><span class="tag pos">通过</span></td></tr>
+    <tr class="rw" onclick="say('低分复核：EVA 引用了 stale 状态的 KB-009 → 已建知识改写任务 + 计入 Coaching 卡片')"><td class="mono">#1036 · EVA</td><td style="color:var(--warn)">72</td><td>100</td><td>94</td><td><b style="color:var(--warn)">83</b></td><td><span class="tag neg">待复核</span></td></tr>
+  </table></div></div>`;
+}
+
+/* ============ settings page ============ */
+let STAB='ch';
+function renderSet(){
+  const tabs=[['ch','渠道'],['team','用户与团队'],['sla','SLA 策略'],['auto','自动化规则'],['eva','EVA / AI'],['api','API · Webhook'],['audit','审计日志']];
+  $('setFull').innerHTML=`
+  <div class="stabs">${tabs.map(t=>`<span class="stab${STAB===t[0]?' on':''}" onclick="STAB='${t[0]}';renderSet()">${t[1]}</span>`).join('')}</div>
+  <div id="setBody"></div>`;
+  const B=$('setBody');
+  if(STAB==='ch')B.innerHTML=`
+    <div class="sec-hd"><span class="lbl">渠道 · 真实健康状态（修复 B-04）</span><button class="bt bt-pri s" style="margin-left:auto" onclick="chWizard()">+ 接入渠道</button></div>
+    <div class="panel"><table class="x">
+      <tr><th>渠道</th><th>状态</th><th>最近入站</th><th>最近出站</th><th></th></tr>
+      <tr><td><b>Telegram Bot</b> <span class="mono" style="color:var(--tx3)">@PWCareBot</span></td><td><span class="health"><span class="dot d-ok"></span>健康</span></td><td class="mono">2 分钟前</td><td class="mono">1 分钟前 ✓</td><td><button class="bt bt-line s">配置</button></td></tr>
+      <tr><td><b>网页 LiveChat</b></td><td><span class="health"><span class="dot d-ok"></span>健康</span></td><td class="mono">刚刚</td><td class="mono">刚刚 ✓</td><td><button class="bt bt-line s">嵌入代码</button></td></tr>
+      <tr><td><b>Email</b> <span class="mono" style="color:var(--tx3)">support@parallelworldgame.com</span></td><td><span class="health"><span class="dot d-ok"></span>健康</span></td><td class="mono">18 分钟前</td><td class="mono">12 分钟前 ✓</td><td><button class="bt bt-line s">配置</button></td></tr>
+      <tr><td><b>WhatsApp Business</b></td><td><span class="health"><span class="dot d-warn"></span>凭据过期</span></td><td class="mono">昨天</td><td class="mono" style="color:var(--bad)">失败 ×3 · 死信 2</td><td><button class="bt bt-warn s" onclick="say('引导重新授权 → 死信队列 2 条可一键重投')">修复</button></td></tr>
+    </table></div>`;
+  if(STAB==='team')B.innerHTML=`
+    <div class="sec-hd"><span class="lbl">用户与团队（修复 B-15）</span><button class="bt bt-pri s" style="margin-left:auto" onclick="say('邀请邮件已发送 → 新人自助设置密码 · 默认角色 agent · 全程审计')">+ 邀请成员</button></div>
+    <div class="panel"><table class="x">
+      <tr><th>成员</th><th>角色</th><th>审批职位</th><th>2FA</th><th>状态</th><th></th></tr>
+      <tr><td>crm@parallelworldgame.com<div style="font-size:10px;color:var(--tx3)">Parallel World 管理员（我）</div></td><td><span class="tag">tenant_admin</span></td><td>—</td><td><span class="tag pos">已启用</span></td><td><span class="health"><span class="dot d-ok"></span>在线</span></td><td></td></tr>
+      <tr><td>kendrick@parallelworldgame.com</td><td><span class="tag">agent</span></td><td><span class="tag">Supervisor</span></td><td><span class="tag pos">已启用</span></td><td><span class="health"><span class="dot d-ok"></span>在线</span></td><td><button class="bt bt-line s">管理</button></td></tr>
+      <tr><td>meiling@parallelworldgame.com</td><td><span class="tag">agent</span></td><td><span class="tag">组长</span></td><td><span class="tag neg">未启用</span></td><td><span class="health"><span class="dot d-mut"></span>离线</span></td><td><button class="bt bt-line s">管理</button></td></tr>
+    </table></div>
+    <div style="font-size:11px;color:var(--tx3);margin-top:10px">登录限速已启用（5 次失败触发冷却）· 会话管理 · 密码重置自助 · 审批职位独立于工单角色（评审 C-1 方案）</div>`;
+  if(STAB==='sla')B.innerHTML=`
+    <div class="sec-hd"><span class="lbl">SLA 策略（按优先级 × 渠道 · 随租户工作日历）</span></div>
+    <div class="panel"><table class="x">
+      <tr><th>优先级</th><th>首响</th><th>解决</th><th>临期动作</th><th>违约动作</th></tr>
+      <tr><td><span class="pill p-urgent">紧急</span></td><td class="mono">15m</td><td class="mono">2h</td><td style="font-size:11.5px">50% 提醒处理人 + 主管</td><td style="font-size:11.5px">升级主管 · 提优先级 · 记违约</td></tr>
+      <tr><td><span class="pill p-high">高</span></td><td class="mono">30m</td><td class="mono">4h</td><td style="font-size:11.5px">提醒处理人</td><td style="font-size:11.5px">升级主管</td></tr>
+      <tr><td><span class="pill p-human">普通</span></td><td class="mono">2h</td><td class="mono">24h</td><td style="font-size:11.5px">提醒处理人</td><td style="font-size:11.5px">记违约</td></tr>
+    </table></div>
+    <div style="font-size:11px;color:var(--tx3);margin-top:10px">审核链 SLA 独立配置（S0-S3 · 默认随工作日历，24/7 为可选高级项 — 按评审调参）</div>`;
+  if(STAB==='auto')B.innerHTML=`
+    <div class="sec-hd"><span class="lbl">自动化规则（当 … 如果 … 就 …）</span><button class="bt bt-pri s" style="margin-left:auto" onclick="say('从 10 个预置模板起步；自然语言生成规则在 P3 提供（先草案后人审启用）')">+ 新建规则</button></div>
+    ${[['VIP 负面情绪即时升级','当 新消息 · 如果 客户=VIP 且 情绪=强负面 · 就 优先级→紧急 + 通知主管','on'],
+       ['关键词「投诉/退款」提优先级','当 新工单 · 如果 命中关键词 · 就 优先级→高','on'],
+       ['超 24h 未跟进自动提醒','当 SLA 时钟 · 如果 等待客服>24h · 就 提醒处理人 + 列入日报','on'],
+       ['解决后自动 CSAT 回访','当 工单解决 · 就 经原渠道发送满意度问卷','on'],
+       ['未分配工单轮询指派','当 新转人工 · 如果 3 分钟无人接管 · 就 按负载轮询指派','off']].map(r=>`
+    <div class="panel" style="padding:12px 16px;margin-bottom:8px;display:flex;align-items:center;gap:12px">
+      <div style="flex:1"><b style="font-size:12.5px">${r[0]}</b><div style="font-size:10.5px;color:var(--tx3);margin-top:3px;font-family:var(--mono)">${r[1]}</div></div>
+      <label class="switch"><input type="checkbox" ${r[2]==='on'?'checked':''} onchange="say('规则已'+(this.checked?'启用':'停用')+'（命中记录全部入审计）')"><span class="sl"></span></label>
+    </div>`).join('')}`;
+  if(STAB==='eva')B.innerHTML=`
+    <div class="grid g2">
+      <div class="panel" style="padding:16px 18px">
+        <div class="sec-hd"><span class="lbl">三层路由 · 真实可用性</span></div>
+        ${[['L1 标签库','零推理即答 · 同答案重复命中自动升级（修复 B-05）','ok','健康'],
+           ['L2 本地模型','llama-3.1-8b @ 内网','ok','健康 · 380ms'],
+           ['L3 Claude','claude-sonnet-4-6','ok','健康 · 已配置密钥'],
+           ['评估器（写操作闸）','五维评估 · 只闸写操作意图','ok','影子模式 → 已转正']].map(l=>`
+        <div class="kv"><span class="k"><b style="color:var(--tx)">${l[0]}</b><div style="font-size:10px;color:var(--tx3)">${l[1]}</div></span><span class="health"><span class="dot d-${l[2]}"></span>${l[3]}</span></div>`).join('')}
+        <div style="font-size:10.5px;color:var(--tx3);margin-top:10px">凭据缺失/连通失败会在此处与开关旁直接显示原因（修复 B-04）· 模型下拉只列真实可用项（修复 B-14）</div>
+      </div>
+      <div class="panel" style="padding:16px 18px">
+        <div class="sec-hd"><span class="lbl">发布安全</span></div>
+        <div class="kv"><span class="k">配置变更回放仿真</span><span class="v">上次：误拦率 1.8% ✓</span></div>
+        <div class="kv"><span class="k">转人工阈值</span><span class="v">62%（键盘/触控修改均保存）</span></div>
+        <div class="kv"><span class="k">人工请求关键词</span><span class="v">7 个 · 可编辑</span></div>
+        <div class="kv"><span class="k">多语言</span><span class="v">zh / en / ms 模板三语落库</span></div>
+        <button class="bt bt-vio s" style="margin-top:12px" onclick="say('对最近 30 天 1,240 张历史工单回放当前配置 → 生成 A-E 判定分布与预计送审量对比报告（发布前必跑）')">▶ 运行回放仿真</button>
+      </div>
+    </div>`;
+  if(STAB==='api')B.innerHTML=`
+    <div class="grid g2">
+      <div class="panel" style="padding:16px 18px"><div class="sec-hd"><span class="lbl">API Keys</span><button class="bt bt-line s" style="margin-left:auto" onclick="say('新密钥仅显示一次 · scope 可选 · 可随时吊销（全程审计）')">+ 生成</button></div>
+        <div class="kv"><span class="k">pw-game-backend</span><span class="v">scope: tickets.read actions.execute</span></div>
+        <div class="kv"><span class="k">bi-report</span><span class="v">scope: metrics.read</span></div></div>
+      <div class="panel" style="padding:16px 18px"><div class="sec-hd"><span class="lbl">出站 Webhook（签名 + 重试）</span></div>
+        <div class="kv"><span class="k">ticket.created / updated</span><span class="v">→ ops.parallelworldgame.com ✓</span></div>
+        <div class="kv"><span class="k">review.decided</span><span class="v">→ Slack #cs-approvals ✓</span></div></div>
+    </div>`;
+  if(STAB==='audit')B.innerHTML=`
+    <div class="sec-hd"><span class="lbl">审计日志（工单事件 + 配置变更 + 审批决定 + AI 行为，逐条可查）</span></div>
+    <div class="panel"><table class="x">
+      <tr><th>时间</th><th>操作者</th><th>动作</th><th>对象</th></tr>
+      <tr><td class="mono">14:22</td><td>我</td><td>执行 Action（自动档）：查询 GM 发放日志</td><td class="mono">#1042 · 输入/输出已存档</td></tr>
+      <tr><td class="mono">14:10</td><td>Kendrick</td><td>审批同意（S3 第 2 层）· 理由 + 引用 R-201</td><td class="mono">REQ-0033</td></tr>
+      <tr><td class="mono">13:55</td><td>我</td><td>修改规则 R-133 → v2（生效前已回放 diff）</td><td class="mono">policy_rules</td></tr>
+      <tr><td class="mono">13:40</td><td>EVA</td><td>L1 应答 · 引用 KB-004 · 成本 $0 · 12ms</td><td class="mono">#1045 · routing_logs</td></tr>
+    </table></div>`;
+}
+function chWizard(){
+  openModal(`<h3>接入渠道 · Telegram（3 步向导）</h3>
+  <div class="msub">非技术人员 10 分钟接通 — 修复「配置渠道要直接调 API」的现状</div>
+  <div class="wstep done"><span class="wn">✓</span><div>粘贴 Bot Token（从 @BotFather 获取）— 已加密存储，界面永不回显</div></div>
+  <div class="wstep done"><span class="wn">✓</span><div>自动调用 setWebhook 并验证回调连通</div></div>
+  <div class="wstep"><span class="wn">3</span><div>发送一条测试消息 → 在收件箱看到工单 + EVA 应答 + 回复送达 = 闭环确认</div></div>
+  <div class="mft"><button class="bt bt-line" onclick="closeModal()">取消</button><button class="bt bt-pri" onclick="closeModal();say('测试闭环通过 ✓ 渠道已激活')">发送测试消息</button></div>`);
+}
+
+/* ============ shared ============ */
+function openModal(html){$('modalBox').innerHTML=html;$('scrim').classList.add('show');}
+function closeModal(){$('scrim').classList.remove('show');}
+$('scrim').addEventListener('click',e=>{if(e.target===$('scrim'))closeModal();});
+const TITLES={inbox:['收件箱','/inbox'],cust:['客户 360°','/customers'],review:['审核队列','/review'],kb:['知识库','/kb'],mon:['主管驾驶舱','/monitor'],set:['设置','/settings']};
+function nav(p){
+  document.querySelectorAll('.rlink').forEach(x=>x.classList.toggle('on',x.dataset.pg===p));
+  document.querySelectorAll('.pg').forEach(x=>x.classList.remove('on'));
+  $('pg-'+p).classList.add('on');
+  $('hdT').textContent=TITLES[p][0];$('hdP').textContent=TITLES[p][1];
+  if(p==='cust')renderCust();if(p==='review')renderRev();if(p==='kb')renderKb();if(p==='mon')renderMon();if(p==='set')renderSet();
+}
+/* compose enter-to-send with IME protection */
+document.addEventListener('keydown',e=>{
+  if(e.target.id==='draft'&&e.key==='Enter'&&!e.shiftKey){
+    if(e.isComposing||e.keyCode===229)return; /* 输入法组词保护（修复 B-10）*/
+    e.preventDefault();send();
+  }
+});
+/* simulated realtime: new handoff arrives */
+setTimeout(()=>{
+  TICKETS.push({id:'#1046',cust:'mei',subj:'首充双倍没有到账',st:'handoff',pr:'high',ch:'livechat',intent:'发放异常',senti:'neg',sla:60,slaT:60,lock:null,
+    msgs:[{r:'in',t:'我刚充了首充礼包，说好的双倍钻石没有到，转人工！',ts:now()},
+      {r:'sys',t:'用户请求人工 · EVA 交接摘要已生成 · SLA 60 分钟计时开始',ts:now()}]});
+  $('nInbox').textContent='5';$('bellN').textContent='6';
+  say('🔔 新转人工：#1046 首充双倍没有到账（小美 · 高优先级）— 浏览器通知 + 声音已推送（修复 B-21）','push');
+  renderQ();
+},18000);
+
+renderQ();renderC();
+</script>
+</body>
+</html>

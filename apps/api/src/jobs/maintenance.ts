@@ -4,15 +4,24 @@ import { applyTransition } from '../state/service.js';
 import { bus } from '../realtime/bus.js';
 import { REOPEN_WINDOW_MS } from '../state/machine.js';
 
+export { retryPendingDeliveries } from '../modules/outbound/index.js';
+
 // Scheduled maintenance (PRD Phase 4 / §5). Pure-ish functions so they can be
 // unit-tested and driven by the worker on an interval.
 
-/** done → closed after the 7-day reopen window elapses (PRD P0-2). */
+/**
+ * done → closed after the 7-day reopen window elapses (PRD P0-2).
+ *
+ * The bulk close must NOT bump updated_at: the inbox sorts by last activity and
+ * a nightly cron touching dozens of rows floods the top of every agent's queue
+ * with freshly-"updated" closed tickets (review B-01). We restore the previous
+ * updated_at with a raw UPDATE after the audited transition.
+ */
 export async function closeExpiredDone(now: Date = new Date()): Promise<number> {
   const cutoff = new Date(now.getTime() - REOPEN_WINDOW_MS);
   const due = await prisma.ticket.findMany({
     where: { status: 'done', resolvedAt: { lt: cutoff } },
-    select: { id: true, tenantId: true },
+    select: { id: true, tenantId: true, updatedAt: true },
   });
   for (const t of due) {
     await applyTransition({
@@ -22,6 +31,7 @@ export async function closeExpiredDone(now: Date = new Date()): Promise<number> 
       actor: { type: 'system' },
       eventPayload: { reason: 'auto_close_after_7d' },
     });
+    await prisma.$executeRaw`UPDATE tickets SET updated_at = ${t.updatedAt} WHERE id = ${t.id}::uuid`;
   }
   return due.length;
 }

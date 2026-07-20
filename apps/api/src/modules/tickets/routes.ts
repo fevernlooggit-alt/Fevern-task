@@ -5,6 +5,7 @@ import { parse } from '../../lib/validate.js';
 import { heartbeat } from './locking.js';
 import {
   claimTicket,
+  getEndUserProfile,
   getTicketThread,
   handoffTicket,
   listTickets,
@@ -13,6 +14,7 @@ import {
   replyToTicket,
   resolveTicket,
 } from './service.js';
+import { retryDelivery } from '../outbound/index.js';
 
 const consoleScope = [authenticate, tenantScope, requireRole(...ROLES.consoleUser)];
 const agentScope = [authenticate, tenantScope, requireRole(...ROLES.agentLike)];
@@ -24,7 +26,9 @@ const listQuery = z.object({
   page: z.coerce.number().int().positive().optional(),
   pageSize: z.coerce.number().int().positive().max(100).optional(),
 });
-const replyBody = z.object({ body: z.string().min(1) });
+const replyBody = z.object({ body: z.string().min(1), internal: z.boolean().optional() });
+const endUserParams = z.object({ t: z.string(), id: z.string().uuid() });
+const retryParams = z.object({ t: z.string(), id: z.string().uuid(), messageId: z.string().uuid() });
 
 export async function ticketRoutes(app: FastifyInstance): Promise<void> {
   app.get('/tenants/:t/tickets', { preHandler: consoleScope }, async (req) => {
@@ -57,11 +61,30 @@ export async function ticketRoutes(app: FastifyInstance): Promise<void> {
 
   app.post('/tenants/:t/tickets/:id/messages', { preHandler: agentScope }, async (req, reply) => {
     const { id } = parse(idParams, req.params);
-    const { body } = parse(replyBody, req.body);
+    const { body, internal } = parse(replyBody, req.body);
     const u = req.currentUser!;
-    const ticket = await replyToTicket(req.tenantId!, id, { id: u.id, displayName: u.displayName }, body);
+    const ticket = await replyToTicket(req.tenantId!, id, { id: u.id, displayName: u.displayName }, body, {
+      internal,
+    });
     reply.code(201);
     return { ticket };
+  });
+
+  // Manual retry for a failed outbound delivery (P0-1).
+  app.post(
+    '/tenants/:t/tickets/:id/messages/:messageId/retry-delivery',
+    { preHandler: agentScope },
+    async (req) => {
+      const { messageId } = parse(retryParams, req.params);
+      const result = await retryDelivery(req.tenantId!, messageId);
+      return { ok: result.ok, error: result.error ?? null };
+    },
+  );
+
+  // Customer context pane (P0-3): profile + cross-ticket history.
+  app.get('/tenants/:t/end-users/:id', { preHandler: consoleScope }, async (req) => {
+    const { id } = parse(endUserParams, req.params);
+    return getEndUserProfile(req.tenantId!, id);
   });
 
   app.post('/tenants/:t/tickets/:id/handoff', { preHandler: agentScope }, async (req) => {

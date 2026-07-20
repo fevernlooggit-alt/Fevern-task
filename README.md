@@ -45,10 +45,11 @@ npm install
 cp .env.example apps/api/.env          # adjust DATABASE_URL / REDIS_URL if needed
 createdb icrm && createdb icrm_test     # or use the URLs in .env
 npm -w @icrm/api run db:migrate         # apply migrations
+npm -w @icrm/api run db:generate        # generate the Prisma client (required once)
 npm -w @icrm/api run db:seed            # load prototype fixtures
 npm run dev                             # API on http://localhost:3000
 npm -w @icrm/web run dev                # (separate shell) console on http://localhost:5173
-npm -w @icrm/api run worker             # (separate shell) maintenance worker
+npm -w @icrm/api run worker             # (separate shell) maintenance worker + delivery retries
 ```
 
 Open http://localhost:5173 and log in with a seed account below — the inbox boots looking
@@ -88,6 +89,8 @@ Tenants (slugs): `parallel-world`, `rare-earth-pwc`, `ntworld`.
 ```bash
 npm test                    # full Vitest suite (needs Postgres; uses TEST_DATABASE_URL)
 npm run test:e2e            # Playwright console smoke (reseeds, then drives the real UI)
+# environments with a preinstalled Chromium (no downloaded browsers):
+PLAYWRIGHT_CHROMIUM_PATH=/path/to/chromium npm run test:e2e
 npm -w @icrm/api run typecheck && npm -w @icrm/web run typecheck
 ```
 
@@ -151,8 +154,12 @@ GET    /tenants/:t/tickets?status=&q=&page=
 GET    /tenants/:t/tickets/:id               (thread + events)
 POST   /tenants/:t/tickets/:id/claim         (409 on collision)
 POST   /tenants/:t/tickets/:id/release | /heartbeat
-POST   /tenants/:t/tickets/:id/messages      (auto-claim)
+POST   /tenants/:t/tickets/:id/messages      (auto-claim; {internal:true} = team note)
+POST   /tenants/:t/tickets/:id/messages/:mid/retry-delivery
 POST   /tenants/:t/tickets/:id/handoff | /resolve | /reopen
+GET    /tenants/:t/end-users/:id             (customer 360°: profile + history)
+GET/POST/PUT /tenants/:t/users               (tenant_admin user management)
+POST   /auth/change-password
 GET/PUT /tenants/:t/eva-config
 CRUD   /tenants/:t/label-answers | /kb-articles | /channels
 GET    /tenants/:t/metrics/summary?range= | /metrics/routing | /metrics/timeseries

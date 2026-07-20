@@ -15,6 +15,7 @@ export interface UserRef {
 
 export interface TicketListItem {
   id: string;
+  number: number;
   subject: string;
   status: TicketStatus;
   priority: string;
@@ -28,7 +29,7 @@ export interface TicketListItem {
 }
 
 export interface TicketDetail extends Omit<TicketListItem, 'endUserName'> {
-  endUser: { displayName: string; email: string | null };
+  endUser: { id: string; displayName: string; email: string | null };
   lockedAt: string | null;
   handoffReason: string | null;
   firstResponseAt: string | null;
@@ -42,8 +43,54 @@ export interface Message {
   senderUserId: string | null;
   body: string;
   internal: boolean;
+  deliveryStatus: 'not_applicable' | 'pending' | 'sent' | 'failed';
+  deliveryError: string | null;
   meta: Record<string, unknown> | null;
   createdAt: string;
+}
+
+export interface LayerAvailability {
+  l1: { available: boolean; reason?: string };
+  l2: { available: boolean; reason?: string };
+  l3: { available: boolean; reason?: string };
+}
+
+export interface EvaConfigResponse {
+  config: EvaConfig;
+  availability: LayerAvailability;
+  costs: { l1: number; l2: number; l3: number };
+}
+
+export interface ManagedUser {
+  id: string;
+  email: string;
+  displayName: string;
+  role: 'super_admin' | 'tenant_admin' | 'agent' | 'viewer';
+  isOnline: boolean;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export interface EndUserProfile {
+  endUser: {
+    id: string;
+    displayName: string;
+    email: string | null;
+    telegramId: string | null;
+    externalKey: string;
+    meta: Record<string, unknown>;
+  };
+  stats: Record<string, number>;
+  tickets: Array<{
+    id: string;
+    number: number;
+    subject: string;
+    status: TicketStatus;
+    priority: string;
+    channelType: string;
+    createdAt: string;
+    resolvedAt: string | null;
+  }>;
 }
 
 export interface EvaConfig {

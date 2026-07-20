@@ -37,5 +37,7 @@ export const Errors = {
   conflict: (msg: string, details?: unknown) => new ApiError(409, 'conflict', msg, details),
   badRequest: (msg = 'Bad request', details?: unknown) =>
     new ApiError(400, 'bad_request', msg, details),
+  tooManyRequests: (msg = 'Too many requests', details?: unknown) =>
+    new ApiError(429, 'too_many_requests', msg, details),
   internal: (msg = 'Internal server error') => new ApiError(500, 'internal_error', msg),
 };

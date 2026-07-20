@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api';
 import { t } from '../locale';
 import { useToast } from '../toast';
-import type { Channel, EvaConfig, LabelAnswer } from '../types';
+import type { Channel, EvaConfig, EvaConfigResponse, LabelAnswer, LayerAvailability } from '../types';
 
-const MODEL_OPTIONS = ['claude-fable-5', 'claude-sonnet-4-6', 'gemini-2.5-pro'];
+// Only models the backend can actually serve (Anthropic provider) are offered —
+// no decorative options (review B-14).
+const MODEL_OPTIONS = ['claude-sonnet-4-6'];
 
 const CHANNEL_LABEL: Record<Channel['type'], string> = {
   email: 'Email Piping',
@@ -21,17 +23,22 @@ interface Props {
 export default function EvaConfigPage({ tenant, canEdit }: Props) {
   const toast = useToast();
   const [config, setConfig] = useState<EvaConfig | null>(null);
+  const [availability, setAvailability] = useState<LayerAvailability | null>(null);
+  const [costs, setCosts] = useState<{ l1: number; l2: number; l3: number } | null>(null);
   const [channels, setChannels] = useState<Channel[]>([]);
   const [answers, setAnswers] = useState<LabelAnswer[]>([]);
   const [threshold, setThreshold] = useState(62);
+  const thresholdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const load = useCallback(async () => {
     const [c, ch, la] = await Promise.all([
-      api.get<{ config: EvaConfig }>(`/tenants/${tenant}/eva-config`),
+      api.get<EvaConfigResponse>(`/tenants/${tenant}/eva-config`),
       api.get<{ channels: Channel[] }>(`/tenants/${tenant}/channels`),
       api.get<{ labelAnswers: LabelAnswer[] }>(`/tenants/${tenant}/label-answers`),
     ]);
     setConfig(c.config);
+    setAvailability(c.availability);
+    setCosts(c.costs);
     setThreshold(c.config.handoffConfidenceThreshold);
     setChannels(ch.channels);
     setAnswers(la.labelAnswers);
@@ -43,9 +50,21 @@ export default function EvaConfigPage({ tenant, canEdit }: Props) {
 
   const patch = async (data: Partial<EvaConfig>, msg?: string) => {
     if (!canEdit || !config) return;
-    const res = await api.put<{ config: EvaConfig }>(`/tenants/${tenant}/eva-config`, data);
+    const res = await api.put<EvaConfigResponse>(`/tenants/${tenant}/eva-config`, data);
     setConfig(res.config);
+    setAvailability(res.availability);
     if (msg) toast(msg);
+  };
+
+  // Threshold saves on *change* (debounced) — keyboard and touch edits persist
+  // just like mouse drags (review B-09).
+  const onThreshold = (v: number) => {
+    setThreshold(v);
+    if (!canEdit) return;
+    if (thresholdTimer.current) clearTimeout(thresholdTimer.current);
+    thresholdTimer.current = setTimeout(() => {
+      void patch({ handoffConfidenceThreshold: v }, t.saved);
+    }, 500);
   };
 
   const addAnswer = async () => {
@@ -68,16 +87,18 @@ export default function EvaConfigPage({ tenant, canEdit }: Props) {
   };
 
   const removeAnswer = async (id: string) => {
+    // Destructive-action confirm (P0-9, review B-11).
+    if (!window.confirm(t.confirmDelete)) return;
     await api.del(`/tenants/${tenant}/label-answers/${id}`);
     setAnswers((xs) => xs.filter((x) => x.id !== id));
   };
 
-  if (!config) return null;
+  if (!config || !availability || !costs) return null;
 
   const layers = [
-    { key: 'l1Enabled' as const, ln: 'l1', code: 'L1', name: t.l1Name, desc: t.l1Desc, cost: '$0.000' },
-    { key: 'l2Enabled' as const, ln: 'l2', code: 'L2', name: t.l2Name, desc: t.l2Desc, cost: '$0.0004' },
-    { key: 'l3Enabled' as const, ln: 'l3', code: 'L3', name: t.l3Name, desc: t.l3Desc, cost: '$0.012' },
+    { key: 'l1Enabled' as const, ln: 'l1', code: 'L1', name: t.l1Name, desc: t.l1Desc, cost: costs.l1, avail: availability.l1 },
+    { key: 'l2Enabled' as const, ln: 'l2', code: 'L2', name: t.l2Name, desc: t.l2Desc, cost: costs.l2, avail: availability.l2 },
+    { key: 'l3Enabled' as const, ln: 'l3', code: 'L3', name: t.l3Name, desc: t.l3Desc, cost: costs.l3, avail: availability.l3 },
   ];
 
   return (
@@ -89,10 +110,17 @@ export default function EvaConfigPage({ tenant, canEdit }: Props) {
             <div className="layer" key={l.key}>
               <div className={`ln ${l.ln}`}>{l.code}</div>
               <div className="info">
-                <b>{l.name}</b>
+                <b>
+                  {l.name}{' '}
+                  {/* Real availability, not just the toggle (review B-04). */}
+                  <span className={`health-b ${l.avail.available ? 'ok' : 'down'}`}>
+                    {l.avail.available ? t.healthOk : t.healthDown}
+                  </span>
+                </b>
                 <span>{l.desc}</span>
+                {!l.avail.available && l.avail.reason && <span className="health-reason">{l.avail.reason}</span>}
               </div>
-              <div className="cost">{l.cost}</div>
+              <div className="cost">${l.cost.toFixed(4).replace(/0+$/, '').replace(/\.$/, '.0')}</div>
               <label className="switch">
                 <input
                   type="checkbox"
@@ -117,9 +145,7 @@ export default function EvaConfigPage({ tenant, canEdit }: Props) {
             value={threshold}
             disabled={!canEdit}
             aria-label={t.thresholdTitle}
-            onChange={(e) => setThreshold(Number(e.target.value))}
-            onMouseUp={() => void patch({ handoffConfidenceThreshold: threshold }, t.saved)}
-            onTouchEnd={() => void patch({ handoffConfidenceThreshold: threshold }, t.saved)}
+            onChange={(e) => onThreshold(Number(e.target.value))}
           />
         </div>
         <div>
@@ -129,7 +155,7 @@ export default function EvaConfigPage({ tenant, canEdit }: Props) {
               <span>{t.mainModel}</span>
               <select
                 className="inp"
-                value={MODEL_OPTIONS.includes(config.l3Model) ? config.l3Model : config.l3Model}
+                value={config.l3Model}
                 disabled={!canEdit}
                 onChange={(e) => void patch({ l3Model: e.target.value }, `主模型已切换：${e.target.value}`)}
               >
@@ -173,7 +199,7 @@ export default function EvaConfigPage({ tenant, canEdit }: Props) {
             {channels.map((c) => (
               <div className="kv" key={c.id}>
                 <span>{CHANNEL_LABEL[c.type]}</span>
-                {c.status === 'active' ? (
+                {c.status === 'active' && c.configured ? (
                   <b className="up">{t.chConnected}</b>
                 ) : (
                   <b style={{ color: 'var(--muted)' }}>{t.chDisconnected}</b>

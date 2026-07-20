@@ -84,3 +84,39 @@ above the six prototype tickets in the updatedAt-ordered inbox (and 10:00 local 
 future in UTC containers). Seed history is therefore generated for days 1–14 ago only, and
 prototype tickets receive explicit near-now `updated_at` values, so first boot always shows
 the prototype threads at the top (PRD §0.7).
+
+### DEC-014 · 2026-07-20 · Outbound delivery lives on the message row
+P0-1 (review B-00): replies must reach the end user. Delivery lifecycle
+(`delivery_status pending→sent|failed`, `delivery_error`, `delivered_at`) is stored on
+`messages` rather than a separate outbox table: the console needs per-message ticks, the
+retry endpoint needs a stable id the UI already has, and one row per reply avoids a join
+on every thread load. Adapters (`telegram`, `livechat`) sit behind
+`src/modules/outbound/index.ts`; unsupported channels record an honest terminal failure
+instead of pretending. LiveChat "delivery" = availability to the widget's new
+`GET /webhooks/livechat/:channelId/thread` poll. Retries: capped in-band attempts +
+maintenance-worker sweep of `pending`.
+
+### DEC-015 · 2026-07-20 · Default inbox view = active statuses; cron close keeps updated_at
+Review B-01/B-03: the default ticket list is now `new|ai|handoff|human` (done/closed are
+explicit filters, `all` stays as legacy), and `closeExpiredDone` restores `updated_at`
+after the audited transition so bulk maintenance can never flood an activity-sorted
+inbox. UI gains load-more pagination against the existing `page` param.
+
+### DEC-016 · 2026-07-20 · Reply/claim on an `ai` ticket = one-step takeover
+Review ⚫-5: the old flow forced 转人工 before an agent could speak. `claim` and
+`reply` on an `ai` ticket now run `handoff(manual)` + `claim` through the unchanged
+state machine (two audited transitions, no new edges), merging takeover into one action.
+The separate 转人工 button in the console becomes 接管此单.
+
+### DEC-017 · 2026-07-20 · Users management is tenant-scoped; login rate limit in-memory
+P0-5 (review B-15): tenant_admin CRUD for console users (`is_active` soft deactivation
+releases locks and kills sessions), self-service password change, and a 5-failure/15-min
+login cooldown per ip+email. The limiter is in-process on purpose (single instance);
+Redis is the documented seam when horizontal scale lands. super_admin accounts are not
+manageable through the tenant surface.
+
+### DEC-018 · 2026-07-20 · Console routing = hash routes, no router dependency
+P0-7 (review B-06): `#/inbox/:ticketId`, `#/eva`, `#/kb`, `#/mon`, `#/settings` via a
+30-line parser + popstate/hashchange listeners. Hash routing needs no server rewrite
+config, keeps the Vite dev proxy untouched, and the console has exactly five routes —
+react-router would be dependency for its own sake.

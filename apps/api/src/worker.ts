@@ -1,6 +1,6 @@
 import { env } from './config/env.js';
 import { prisma } from './db/prisma.js';
-import { closeExpiredDone, cleanupStaleLocks } from './jobs/maintenance.js';
+import { closeExpiredDone, cleanupStaleLocks, retryPendingDeliveries } from './jobs/maintenance.js';
 
 // Background worker (PRD §3). In Phase 1 it runs the two scheduled maintenance
 // jobs on a timer. Phase 2 adds BullMQ queues (email IMAP polling, EVA async,
@@ -12,9 +12,10 @@ async function tick(): Promise<void> {
   try {
     const closed = await closeExpiredDone();
     const unlocked = await cleanupStaleLocks();
-    if (closed || unlocked) {
+    const redelivered = await retryPendingDeliveries();
+    if (closed || unlocked || redelivered) {
       // eslint-disable-next-line no-console
-      console.log(`[worker] maintenance: closed=${closed} staleLocksReleased=${unlocked}`);
+      console.log(`[worker] maintenance: closed=${closed} staleLocksReleased=${unlocked} redelivered=${redelivered}`);
     }
   } catch (err) {
     // eslint-disable-next-line no-console

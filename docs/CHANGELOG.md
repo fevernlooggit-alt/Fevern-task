@@ -67,3 +67,59 @@
 
 **Migration notes:** none (no schema changes). Reseed to get the new ordering:
 `npm -w @icrm/api run db:seed`.
+
+## 2026-07-20 — v2 upgrade batch 1: the P0 set from the product review
+
+Implements the P0 layer of `docs/product-review/` (06-feature-priorities): the release
+blockers and operability fixes found in the hands-on audit.
+
+**Backend**
+- **Outbound delivery (P0-1, fixes B-00):** `modules/outbound/` adapter layer — Telegram
+  `sendMessage` (bot token from encrypted channel config, 8s timeout, retryable-error
+  classification), LiveChat widget delivery + new public thread-poll endpoint
+  `GET /webhooks/livechat/:channelId/thread`; widget script now polls for replies.
+  Messages carry `delivery_status/delivery_error/delivered_at`; manual retry endpoint
+  `POST .../messages/:id/retry-delivery`; maintenance worker sweeps stuck deliveries.
+  Unsupported channels (email for now) record honest terminal failures.
+- **Inbox operability (P0-2, fixes B-01/B-03/B-12/B-22):** default list = active
+  statuses; `done`/`closed` are explicit filters; cron close preserves `updated_at`;
+  search covers message bodies, customer names, and `#number`; tickets get a
+  human-readable serial `number`.
+- **One-step takeover (⚫-5):** reply/claim on `ai` tickets runs handoff+claim through
+  the existing state machine.
+- **Internal notes (P1-4):** `POST .../messages {internal:true}` — no lock, no
+  transition, never delivered, hidden from the end-user thread (existing meta.internal
+  mechanics + tests).
+- **Customer 360° (P0-3):** `GET /tenants/:t/end-users/:id` — profile + cross-ticket
+  history + per-status stats.
+- **Users & security (P0-5, fixes B-15):** tenant-scoped user CRUD with `is_active`,
+  self-service password change, login rate limiting (429 after 5 failures/15 min),
+  deactivated accounts rejected at login and session load.
+- **Real AI-layer health (P0-8, fixes B-04/B-13):** eva-config responses include per-layer
+  `availability` (+reason) and env-driven `costs`.
+- Migration `outbound_delivery_ticket_numbers_user_active`: DeliveryStatus enum +
+  message delivery columns, `tickets.number` serial unique, `users.is_active`.
+
+**Console (React)**
+- Hash routing (P0-7, fixes B-06): refresh keeps your place; ticket deep links.
+- Inbox: three-pane layout with customer 360° sidebar (profile, stats, clickable
+  history); active/done/closed filters + load-more; priority pills + `#number`;
+  delivery ticks per outbound message with inline retry; reply/internal-note compose
+  modes; IME-safe Enter (fixes B-10); viewer role sees read-only controls (fixes B-07);
+  接管此单 replaces the separate 转人工 button.
+- Browser notifications + sound for new handoffs/customer messages (P0-4, fixes B-21),
+  opt-in toggle in the top bar.
+- KB: full-article read view for every console role (fixes B-08); delete confirms.
+- EVA config: real per-layer health badges with reasons; costs from the API; threshold
+  persists on change (keyboard/touch included, fixes B-09); decorative model options
+  removed (fixes B-14); label-answer delete confirms (fixes B-11).
+- New Settings page: user management (invite/role/deactivate) + change password.
+- e2e smoke updated for the merged takeover button; suite green
+  (`PLAYWRIGHT_CHROMIUM_PATH` documented for preinstalled-Chromium environments).
+
+**Tests:** 96 passing (84 existing + 12 new covering outbound delivery/poll/retry,
+inbox defaults/search/cron-sort fix, takeover, internal notes, end-user profile, user
+management, rate limiting, layer health).
+
+**Migration notes:** run `npx prisma migrate deploy && npx prisma generate`, then
+reseed if you want prototype data (`npm -w @icrm/api run db:seed`).

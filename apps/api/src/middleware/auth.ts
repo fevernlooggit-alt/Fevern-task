@@ -13,9 +13,10 @@ export async function authenticate(req: FastifyRequest, _reply: FastifyReply): P
 
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { id: true, email: true, displayName: true, role: true, tenantId: true },
+    select: { id: true, email: true, displayName: true, role: true, tenantId: true, isActive: true },
   });
   if (!user) throw Errors.unauthorized('Session user no longer exists');
+  if (!user.isActive) throw Errors.unauthorized('Account is deactivated');
 
   req.currentUser = user;
 }

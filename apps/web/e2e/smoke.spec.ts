@@ -45,7 +45,8 @@ test('console smoke: login → claim → reply → collision → resolve → mon
   await expect(page2.getByTestId('collision-banner')).toBeVisible();
   await expect(page2.getByTestId('collision-banner')).toContainText('Kendrick Chan');
   await expect(page2.getByPlaceholder('输入回复… (Enter 发送)')).toBeDisabled();
-  await expect(page2.getByRole('button', { name: '转人工', exact: true })).toBeDisabled();
+  // v2: the separate 转人工 button merged into 接管此单 (reply/claim = takeover).
+  await expect(page2.getByRole('button', { name: '接管此单' })).toBeDisabled();
 
   // --- session 1 resolves ---
   await page1.getByRole('button', { name: '标记解决' }).click();
