@@ -6,11 +6,13 @@
 
 | 文件 | 用途 |
 | --- | --- |
-| `warrior-angel-template.png` | 主模板（2480×3508，A4 @300dpi）。浅蓝灰=生成起稿线，深灰=已完成示范，虚线与留白=由你补全 |
-| `warrior-angel-template-light.png` | 更浅的临摹版，适合直接打印后用铅笔在上面加深、补全 |
-| `warrior-angel-sheet.html` | 矢量源文件（内嵌 SVG），浏览器打开即可缩放查看或打印 |
-| `gen_sheet.py` | 生成脚本：程序化绘制全部线稿并输出 `sheet.html`（渲染 PNG 用 headless Chromium 截图） |
-| `PHILOSOPHY.md` | 本图遵循的设计理念「未完之线」 |
+| `warrior-angel-template.png` | SHEET 01 主模板（2480×3508，A4 @300dpi）。浅蓝灰=生成起稿线，深灰=已完成示范，虚线与留白=由你补全 |
+| `warrior-angel-template-light.png` | 主模板的浅色临摹版，适合直接打印后用铅笔在上面加深、补全 |
+| `warrior-angel-head-study.png` | SHEET 02 头部特写成稿：大头像完整画出（兜帽、刘海、冷峻五官、碎裂光环），配 ①结构→②五官→③发型→④兜帽 四步分解与三分之四视图起稿练习 |
+| `warrior-angel-head-study-light.png` | 头部特写的浅色临摹版 |
+| `warrior-angel-sheet.html` / `warrior-angel-head-sheet.html` | 矢量源文件（内嵌 SVG），浏览器打开即可缩放查看或打印 |
+| `gen_sheet.py` / `gen_head.py` | 生成脚本：程序化绘制全部线稿并输出 HTML（渲染 PNG 用 headless Chromium 截图） |
+| `PHILOSOPHY.md` | 本系列遵循的设计理念「未完之线」 |
 
 ## 使用建议
 
